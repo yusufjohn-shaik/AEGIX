@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "cyberguard-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -252,6 +252,7 @@ dependencies = [
  "cyberguard-proc",
  "cyberguard-sast",
  "cyberguard-sca",
+ "cyberguard-secret",
  "serde",
  "serde_json",
  "tokio",
@@ -261,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "cyberguard-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "chrono",
  "figment",
@@ -275,7 +276,7 @@ dependencies = [
 
 [[package]]
 name = "cyberguard-proc"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "cyberguard-core",
  "nix",
@@ -286,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "cyberguard-sast"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "cyberguard-core",
@@ -301,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "cyberguard-sca"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -312,6 +313,21 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
+name = "cyberguard-secret"
+version = "0.6.0"
+dependencies = [
+ "async-trait",
+ "cyberguard-core",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
  "tracing",
  "walkdir",
 ]

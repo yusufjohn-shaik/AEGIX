@@ -4,6 +4,7 @@ use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog}
 use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
 use cyberguard_sca::sbom::{generate_cyclonedx_json, generate_spdx_json};
 use cyberguard_sca::{ScaAnalyzer, ScaEngine};
+use cyberguard_secret::{SecretEngine, SecretScanner};
 use std::path::{Path, PathBuf};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -63,6 +64,14 @@ pub struct ScanArgs {
     /// Minimum severity threshold
     #[arg(long, value_name = "LEVEL")]
     pub min_severity: Option<String>,
+
+    /// Only scan for secrets and leaked credentials
+    #[arg(long)]
+    pub secrets_only: bool,
+
+    /// Disable secret and credential scanning during code scan
+    #[arg(long)]
+    pub no_secrets: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]
@@ -150,45 +159,76 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Scan(args)) => {
-            let mut ctx = ScanContext::new(&args.path);
-            if let Some(ref sev) = args.min_severity {
-                ctx = ctx.with_min_severity(Some(sev.clone()));
+            let mut sast_findings = Vec::new();
+            let sast_engine = NativeRuleEngine::default();
+
+            if !args.secrets_only {
+                let mut ctx = ScanContext::new(&args.path);
+                if let Some(ref sev) = args.min_severity {
+                    ctx = ctx.with_min_severity(Some(sev.clone()));
+                }
+                sast_findings = sast_engine.analyze(&ctx).await?;
             }
 
-            let engine = NativeRuleEngine::default();
-            let findings = engine.analyze(&ctx).await?;
+            let secret_engine = SecretEngine::default();
+            let mut secret_findings = Vec::new();
+            if !args.no_secrets {
+                let raw_secrets = secret_engine.scan_path(&args.path).await?;
+                secret_findings = secret_engine.to_sarif(&raw_secrets);
+            }
 
             match args.format {
                 OutputFormat::Sarif | OutputFormat::Json => {
-                    let mut log = SarifLog::new("CyberGuard SAST", env!("CARGO_PKG_VERSION"));
-                    for rule in engine.rules() {
-                        log.add_rule(ReportingDescriptor {
-                            id: rule.id.clone(),
-                            name: Some(rule.name.clone()),
-                            short_description: Message {
-                                text: rule.message.clone(),
-                            },
-                            full_description: None,
-                            help_uri: Some(rule.help_uri.clone()),
-                        });
+                    let mut log = SarifLog::new("CyberGuard Scanner", env!("CARGO_PKG_VERSION"));
+                    if !args.secrets_only {
+                        for rule in sast_engine.rules() {
+                            log.add_rule(ReportingDescriptor {
+                                id: rule.id.clone(),
+                                name: Some(rule.name.clone()),
+                                short_description: Message {
+                                    text: rule.message.clone(),
+                                },
+                                full_description: None,
+                                help_uri: Some(rule.help_uri.clone()),
+                            });
+                        }
                     }
-                    for finding in findings {
+                    if !args.no_secrets {
+                        for rule in secret_engine.rules() {
+                            log.add_rule(ReportingDescriptor {
+                                id: rule.id.clone(),
+                                name: Some(rule.provider.clone()),
+                                short_description: Message {
+                                    text: rule.description.clone(),
+                                },
+                                full_description: None,
+                                help_uri: Some(
+                                    "https://github.com/yusufjohn-shaik/CYBER-GUARD".to_string(),
+                                ),
+                            });
+                        }
+                    }
+                    for finding in sast_findings {
+                        log.add_result(finding);
+                    }
+                    for finding in secret_findings {
                         log.add_result(finding);
                     }
                     println!("{}", serde_json::to_string_pretty(&log)?);
                 }
                 OutputFormat::Terminal => {
-                    println!("🛡️  CyberGuard SAST Engine v{}", env!("CARGO_PKG_VERSION"));
+                    println!("🛡️  CyberGuard Scanner v{}", env!("CARGO_PKG_VERSION"));
                     println!("Target: {}", args.path.display());
                     println!("Workspace: {}", config.general.workspace_dir.display());
                     println!("{:-<80}", "");
 
-                    if findings.is_empty() {
-                        println!("✅ No security vulnerabilities detected.");
+                    let total_count = sast_findings.len() + secret_findings.len();
+                    if total_count == 0 {
+                        println!("✅ No security vulnerabilities or leaked credentials detected.");
                     } else {
-                        println!("Found {} vulnerability alert(s):", findings.len());
+                        println!("Found {} security alert(s):", total_count);
                         println!();
-                        for f in &findings {
+                        for f in sast_findings.iter().chain(secret_findings.iter()) {
                             let loc_str = if let Some(loc) = f.locations.first() {
                                 if let Some(phys) = &loc.physical_location {
                                     if let Some(reg) = &phys.region {

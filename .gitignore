@@ -68,6 +68,9 @@ Thumbs.db
 *.pfx
 *.p12
 
+# Whitelist dummy test fixtures for security testing
+!tests/fixtures/**
+
 # Large media files (videos)
 *.mp4
 *.mov

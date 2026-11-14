@@ -15,6 +15,7 @@ cyberguard-core = { workspace = true }
 cyberguard-proc = { workspace = true }
 cyberguard-sast = { workspace = true }
 cyberguard-sca = { workspace = true }
+cyberguard-secret = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

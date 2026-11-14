@@ -5,11 +5,12 @@ members = [
     "crates/cyberguard-cli",
     "crates/cyberguard-sast",
     "crates/cyberguard-sca",
+    "crates/cyberguard-secret",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = ["Shaik Yusuf John <yusufjohn252007@gmail.com>"]
 license = "Apache-2.0"
@@ -60,6 +61,7 @@ cyberguard-core = { path = "crates/cyberguard-core" }
 cyberguard-proc = { path = "crates/cyberguard-proc" }
 cyberguard-sast = { path = "crates/cyberguard-sast" }
 cyberguard-sca = { path = "crates/cyberguard-sca" }
+cyberguard-secret = { path = "crates/cyberguard-secret" }
 
 # SAST Engine dependencies
 regex = "1.11"
