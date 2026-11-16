@@ -1,0 +1,20 @@
+[package]
+name = "cyberguard-container"
+description = "Daemonless Container & OCI Security and Dockerfile Linting Engine for CyberGuard"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cyberguard-core = { workspace = true }
+regex = { workspace = true }
+walkdir = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+flate2 = { workspace = true }

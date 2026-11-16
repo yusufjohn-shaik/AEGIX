@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog};
 use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
@@ -72,6 +73,14 @@ pub struct ScanArgs {
     /// Disable secret and credential scanning during code scan
     #[arg(long)]
     pub no_secrets: bool,
+
+    /// Only scan container Dockerfiles and image layers
+    #[arg(long)]
+    pub container_only: bool,
+
+    /// Disable container and Dockerfile scanning during code scan
+    #[arg(long)]
+    pub no_container: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]
@@ -159,10 +168,14 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Some(Commands::Scan(args)) => {
+            let run_sast = !args.secrets_only && !args.container_only;
+            let run_secrets = !args.no_secrets && !args.container_only;
+            let run_container = !args.no_container && !args.secrets_only;
+
             let mut sast_findings = Vec::new();
             let sast_engine = NativeRuleEngine::default();
 
-            if !args.secrets_only {
+            if run_sast {
                 let mut ctx = ScanContext::new(&args.path);
                 if let Some(ref sev) = args.min_severity {
                     ctx = ctx.with_min_severity(Some(sev.clone()));
@@ -172,15 +185,35 @@ async fn main() -> anyhow::Result<()> {
 
             let secret_engine = SecretEngine::default();
             let mut secret_findings = Vec::new();
-            if !args.no_secrets {
+            if run_secrets {
                 let raw_secrets = secret_engine.scan_path(&args.path).await?;
                 secret_findings = secret_engine.to_sarif(&raw_secrets);
+            }
+
+            let container_engine = ContainerEngine::new();
+            let mut container_sarif = Vec::new();
+            if run_container {
+                let path_str = args.path.to_string_lossy();
+                if path_str.ends_with(".tar")
+                    || path_str.ends_with(".tar.gz")
+                    || path_str.ends_with(".tgz")
+                {
+                    if let Ok(report) = container_engine.scan_image_archive(&args.path).await {
+                        container_sarif = container_engine.to_sarif(&report);
+                    }
+                } else if let Ok(df_findings) = container_engine.scan_dockerfile(&args.path).await {
+                    let report = ContainerAuditReport {
+                        dockerfile_findings: df_findings,
+                        packages: Vec::new(),
+                    };
+                    container_sarif = container_engine.to_sarif(&report);
+                }
             }
 
             match args.format {
                 OutputFormat::Sarif | OutputFormat::Json => {
                     let mut log = SarifLog::new("CyberGuard Scanner", env!("CARGO_PKG_VERSION"));
-                    if !args.secrets_only {
+                    if run_sast {
                         for rule in sast_engine.rules() {
                             log.add_rule(ReportingDescriptor {
                                 id: rule.id.clone(),
@@ -193,7 +226,7 @@ async fn main() -> anyhow::Result<()> {
                             });
                         }
                     }
-                    if !args.no_secrets {
+                    if run_secrets {
                         for rule in secret_engine.rules() {
                             log.add_rule(ReportingDescriptor {
                                 id: rule.id.clone(),
@@ -208,10 +241,70 @@ async fn main() -> anyhow::Result<()> {
                             });
                         }
                     }
+                    if run_container {
+                        let container_rules = [
+                            (
+                                "CG-CONT-001",
+                                "Root User Execution",
+                                "Container process runs as root. Specify a non-root USER directive.",
+                            ),
+                            (
+                                "CG-CONT-002",
+                                "Untagged Base Image",
+                                "Base image is untagged or pinned to mutable 'latest' tag.",
+                            ),
+                            (
+                                "CG-CONT-003",
+                                "Curl/Wget to Shell",
+                                "Dangerous pipe from curl/wget to shell execution detected.",
+                            ),
+                            (
+                                "CG-CONT-004",
+                                "Exposed Secret in ENV/ARG",
+                                "Potential hardcoded secret or API credential in ENV/ARG directive.",
+                            ),
+                            (
+                                "CG-CONT-005",
+                                "Missing Healthcheck",
+                                "Container image is missing a HEALTHCHECK instruction.",
+                            ),
+                            (
+                                "CG-CONT-006",
+                                "Sudo in Container",
+                                "Unnecessary use of sudo inside container build step.",
+                            ),
+                            (
+                                "CG-CONT-007",
+                                "ADD instead of COPY",
+                                "ADD used for local non-archive file transfer instead of COPY.",
+                            ),
+                            (
+                                "CG-CONT-008",
+                                "Apt-Get Without Clean",
+                                "apt-get install without cache cleaning retains temporary package indexes.",
+                            ),
+                        ];
+                        for (id, name, desc) in container_rules {
+                            log.add_rule(ReportingDescriptor {
+                                id: id.to_string(),
+                                name: Some(name.to_string()),
+                                short_description: Message {
+                                    text: desc.to_string(),
+                                },
+                                full_description: None,
+                                help_uri: Some(
+                                    "https://github.com/yusufjohn-shaik/CYBER-GUARD".to_string(),
+                                ),
+                            });
+                        }
+                    }
                     for finding in sast_findings {
                         log.add_result(finding);
                     }
                     for finding in secret_findings {
+                        log.add_result(finding);
+                    }
+                    for finding in container_sarif {
                         log.add_result(finding);
                     }
                     println!("{}", serde_json::to_string_pretty(&log)?);
@@ -222,13 +315,18 @@ async fn main() -> anyhow::Result<()> {
                     println!("Workspace: {}", config.general.workspace_dir.display());
                     println!("{:-<80}", "");
 
-                    let total_count = sast_findings.len() + secret_findings.len();
+                    let total_count =
+                        sast_findings.len() + secret_findings.len() + container_sarif.len();
                     if total_count == 0 {
-                        println!("✅ No security vulnerabilities or leaked credentials detected.");
+                        println!("✅ No security vulnerabilities, leaked credentials, or container misconfigurations detected.");
                     } else {
                         println!("Found {} security alert(s):", total_count);
                         println!();
-                        for f in sast_findings.iter().chain(secret_findings.iter()) {
+                        for f in sast_findings
+                            .iter()
+                            .chain(secret_findings.iter())
+                            .chain(container_sarif.iter())
+                        {
                             let loc_str = if let Some(loc) = f.locations.first() {
                                 if let Some(phys) = &loc.physical_location {
                                     if let Some(reg) = &phys.region {
