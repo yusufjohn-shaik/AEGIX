@@ -1,0 +1,29 @@
+[package]
+name = "cyberguard-net"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+description = "Network Reconnaissance and Scope Gate Engine for CyberGuard platform"
+keywords = ["security", "network", "port-scanner", "scope", "recon"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-proc = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

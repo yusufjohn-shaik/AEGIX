@@ -1,0 +1,15 @@
+engagement_id: "ENG-FIXTURE-001"
+valid_from: "2026-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+authorized_cidrs:
+  - "127.0.0.1/32"
+excluded_cidrs:
+  - "127.0.0.2/32"
+authorized_domains:
+  - "localhost"
+authorized_ports:
+  - 80
+  - 443
+  - 8080
+  - 9999
+signature: "7b9ec5a20de179c27cf6588183a8ee55ee7a18d11c33a9efc45b354a989b2118"

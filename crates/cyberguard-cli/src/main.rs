@@ -2,6 +2,9 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog};
+use cyberguard_net::{
+    verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
+};
 use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
 use cyberguard_sca::sbom::{generate_cyclonedx_json, generate_spdx_json};
 use cyberguard_sca::{ScaAnalyzer, ScaEngine};
@@ -41,6 +44,9 @@ pub enum Commands {
 
     /// Audit cloud, network, and supply-chain assets
     Audit(AuditArgs),
+
+    /// Perform network reconnaissance against an authorized target with Scope Gate enforcement
+    Recon(ReconArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -92,6 +98,57 @@ pub struct AuditArgs {
     /// Output report format
     #[arg(short, long, value_enum, default_value_t = AuditFormat::Terminal)]
     pub format: AuditFormat,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct ReconArgs {
+    /// Target hostname or IP address to scan
+    pub target: String,
+
+    /// Path to the .security-scope.yaml file
+    #[arg(long, default_value = ".security-scope.yaml")]
+    pub scope: PathBuf,
+
+    /// Optional HMAC-SHA256 secret key to verify scope authenticity
+    #[arg(long)]
+    pub scope_key: Option<String>,
+
+    /// Target ports to scan ('top100', '80,443', '1-1024')
+    #[arg(long, default_value = "top100")]
+    pub ports: String,
+
+    /// Per-probe connection timeout in milliseconds
+    #[arg(long, default_value_t = 1000)]
+    pub timeout: u64,
+
+    /// Maximum concurrent TCP probes
+    #[arg(long, default_value_t = 128)]
+    pub concurrency: usize,
+
+    /// Supervise host-installed Nmap for scanning
+    #[arg(long)]
+    pub nmap: bool,
+
+    /// Output report format
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+}
+
+fn parse_ports_spec(spec: &str) -> Vec<u16> {
+    let spec = spec.trim();
+    if spec.eq_ignore_ascii_case("top100") {
+        return DEFAULT_TOP_PORTS.iter().map(|(p, _)| *p).collect();
+    }
+    if let Some((start_s, end_s)) = spec.split_once('-') {
+        if let (Ok(start), Ok(end)) = (start_s.trim().parse::<u16>(), end_s.trim().parse::<u16>()) {
+            if start <= end {
+                return (start..=end).collect();
+            }
+        }
+    }
+    spec.split(',')
+        .filter_map(|s| s.trim().parse::<u16>().ok())
+        .collect()
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -452,6 +509,75 @@ async fn main() -> anyhow::Result<()> {
                             );
                             if let Some(ref fixed) = finding.vulnerability.fixed_version {
                                 println!("   └── Remediation: Upgrade to {} or later", fixed);
+                            }
+                        }
+                    }
+                    println!("{:-<80}", "");
+                }
+            }
+        }
+        Some(Commands::Recon(args)) => {
+            if !args.scope.exists() {
+                anyhow::bail!(
+                    "Scope file not found at '{}'. Network reconnaissance strictly requires cryptographic Proof-of-Authorization via .security-scope.yaml.",
+                    args.scope.display()
+                );
+            }
+
+            let gate = ScopeGate::from_file(&args.scope)?;
+            if let Some(ref key) = args.scope_key {
+                verify_scope_hmac(&gate.scope, key.as_bytes())?;
+            }
+
+            let parsed_ports = parse_ports_spec(&args.ports);
+            let engine = NetworkEngine::new(gate)
+                .with_concurrency(args.concurrency)
+                .with_timeout(std::time::Duration::from_millis(args.timeout))
+                .with_nmap(args.nmap);
+
+            let report = engine.scan(&args.target, &parsed_ports).await?;
+
+            match args.format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                OutputFormat::Sarif => {
+                    let sarif = report.sarif.unwrap_or_else(|| {
+                        SarifLog::new("CyberGuard Network Recon Engine", "0.8.0")
+                    });
+                    println!("{}", serde_json::to_string_pretty(&sarif)?);
+                }
+                OutputFormat::Terminal => {
+                    println!(
+                        "🛡️  CyberGuard Network Reconnaissance Engine v{}",
+                        env!("CARGO_PKG_VERSION")
+                    );
+                    if let Some(ref eng) = report.engagement_id {
+                        println!("Engagement: {}", eng);
+                    }
+                    println!(
+                        "Target: {} (Pinned IP: {})",
+                        report.target, report.pinned_ip
+                    );
+                    println!(
+                        "Scanned: {} ports | Discovered Open: {} | Duration: {} ms",
+                        report.scanned_ports, report.open_ports, report.duration_ms
+                    );
+                    println!("{:-<80}", "");
+
+                    if report.findings.is_empty() {
+                        println!("✅ No ports responded to connection attempts.");
+                    } else {
+                        println!("{:<10} {:<10} {:<15} BANNER", "PORT", "STATE", "SERVICE");
+                        println!("{:-<80}", "");
+                        for f in &report.findings {
+                            if f.status == cyberguard_net::PortStatus::Open {
+                                let port_proto = format!("{}/{}", f.port, f.protocol);
+                                let banner = f.banner.as_deref().unwrap_or("-");
+                                println!(
+                                    "{:<10} {:<10} {:<15} {}",
+                                    port_proto, f.status, f.service, banner
+                                );
                             }
                         }
                     }

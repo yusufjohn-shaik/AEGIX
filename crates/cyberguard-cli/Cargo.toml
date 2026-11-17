@@ -17,6 +17,7 @@ cyberguard-sast = { workspace = true }
 cyberguard-sca = { workspace = true }
 cyberguard-secret = { workspace = true }
 cyberguard-container = { workspace = true }
+cyberguard-net = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

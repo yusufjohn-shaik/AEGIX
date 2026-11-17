@@ -183,6 +183,14 @@ Generate standard SARIF telemetry compatible with GitHub Code Scanning, DefectDo
 ./target/release/cyberguard scan tests/fixtures/vulnerable-app --format sarif | jq .
 ```
 
+### 4. Run Network Reconnaissance with Cryptographic Scope Gate
+
+CyberGuard includes an asynchronous pure-Rust network reconnaissance engine with mandatory Scope Gate enforcement (`.security-scope.yaml`), DNS rebinding TOCTOU protection, and bogon/metadata blacklists:
+
+```bash
+./target/release/cyberguard recon 127.0.0.1 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026 --ports 80,443,8080
+```
+
 ---
 
 ## 🤝 Join the Community & Elevate Open-Source Security
