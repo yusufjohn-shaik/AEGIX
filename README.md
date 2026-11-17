@@ -37,6 +37,7 @@ To maintain transparent, uncompromising security credibility, here is what is li
 | **SCA & Supply Chain** | Module 05 | **LIVE ✅** | `cyberguard-sca`, Cargo/npm lockfile parsing, CycloneDX v1.5 & SPDX v2.3 SBOM, OSV advisory engine |
 | **Secret Detection Engine** | Module 06 | **LIVE ✅** | `cyberguard-secret`, Shannon entropy analysis, multi-provider credentials detection (AWS, GitHub, Stripe, OpenAI, Slack, Keys), surgical masking |
 | **Container & OCI Security** | Module 07 | **LIVE ✅** | `cyberguard-container`, static Dockerfile linter (8 rules), daemonless OCI/tar layer scanner, Alpine/Debian package discovery |
+| **Network Recon & Scope Gate** | Module 08 | **LIVE ✅** | `cyberguard-net`, cryptographic Proof-of-Authorization, DNS TOCTOU-resistant PinnedTarget, async TCP scanner, safe banner grabber, supervised Nmap adapter |
 | **MCP AI Agent Server** | Module 16 | **PLANNED 📋** | JSON-RPC Model Context Protocol server for Antigravity, Cursor, and Claude Code |
 | **Attack Path Graph (DAG)** | Module 17 | **PLANNED 📋** | In-memory directed acyclic graph mapping multi-hop exploit chains |
 | **AST Auto-Remediation** | Module 19 | **PLANNED 📋** | Tree-sitter AST syntax patcher and automated regression test generator |
@@ -86,7 +87,7 @@ CyberGuard writes production-ready code fixes:
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        CYBERGUARD CLI & TUI INTERFACE                  │
-│   cyberguard [scan | audit | trace | fix | mcp | report]               │
+│   cyberguard [scan | audit | recon | trace | fix | mcp]                │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     ▼
