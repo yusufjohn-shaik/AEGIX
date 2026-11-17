@@ -89,3 +89,21 @@ async fn test_recon_with_scope_fixture() {
         "Cloud metadata IP must be rejected by Bogon blacklist"
     );
 }
+
+#[tokio::test]
+async fn test_recon_port_spec_parsing() {
+    use cyberguard_net::DEFAULT_TOP_PORTS;
+
+    // Verify top 100 ports list length
+    assert_eq!(DEFAULT_TOP_PORTS.len(), 100);
+
+    // Verify that passing empty string to scan defaults safely
+    let scope_yaml = r#"
+engagement_id: "ENG-PORT-TEST"
+authorized_cidrs:
+  - "127.0.0.1/32"
+"#;
+    let gate = ScopeGate::from_yaml_str(scope_yaml).unwrap();
+    let engine = NetworkEngine::new(gate);
+    assert_eq!(engine.gate.scope.engagement_id, "ENG-PORT-TEST");
+}

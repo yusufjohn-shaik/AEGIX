@@ -67,7 +67,19 @@ impl Cidr {
     /// Check if the given `IpAddr` is contained within this CIDR range.
     #[must_use]
     pub fn contains(&self, ip: IpAddr) -> bool {
-        match (self, ip) {
+        // Canonicalize IPv4-mapped or IPv4-compatible IPv6 addresses (e.g., ::ffff:192.168.1.1)
+        let effective_ip = match ip {
+            IpAddr::V6(v6) => {
+                if let Some(v4) = v6.to_ipv4() {
+                    IpAddr::V4(v4)
+                } else {
+                    IpAddr::V6(v6)
+                }
+            }
+            v4 => v4,
+        };
+
+        match (self, effective_ip) {
             (Self::V4 { network, prefix }, IpAddr::V4(target)) => {
                 if *prefix == 0 {
                     return true;
@@ -91,6 +103,13 @@ impl Cidr {
 /// Returns the reason if blacklisted, or `None` if safe for public/authorized inspection.
 #[must_use]
 pub fn is_bogon_or_metadata(ip: IpAddr) -> Option<&'static str> {
+    // Canonicalize IPv4-mapped or IPv4-compatible IPv6 addresses (e.g. ::ffff:169.254.169.254)
+    if let IpAddr::V6(v6) = ip {
+        if let Some(v4) = v6.to_ipv4() {
+            return is_bogon_or_metadata(IpAddr::V4(v4));
+        }
+    }
+
     match ip {
         IpAddr::V4(ipv4) => {
             let u = u32::from(ipv4);

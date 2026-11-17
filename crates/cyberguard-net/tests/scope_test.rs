@@ -177,3 +177,71 @@ authorized_ports:
     let excluded: IpAddr = "192.0.2.100".parse().unwrap();
     assert!(gate.validate_ip(excluded, 443).is_err());
 }
+
+#[test]
+fn test_ipv4_mapped_ipv6_bogon_rejection() {
+    // IPv4-mapped AWS/GCP IMDS
+    let imds_mapped: IpAddr = "::ffff:169.254.169.254".parse().unwrap();
+    assert!(is_bogon_or_metadata(imds_mapped).is_some());
+
+    // IPv4-mapped Azure WireServer
+    let azure_mapped: IpAddr = "::ffff:168.63.129.16".parse().unwrap();
+    assert!(is_bogon_or_metadata(azure_mapped).is_some());
+
+    // IPv4-mapped Loopback
+    let loopback_mapped: IpAddr = "::ffff:127.0.0.1".parse().unwrap();
+    assert!(is_bogon_or_metadata(loopback_mapped).is_some());
+
+    // IPv4-mapped legitimate public IP is not a bogon
+    let public_mapped: IpAddr = "::ffff:93.184.216.34".parse().unwrap();
+    assert!(is_bogon_or_metadata(public_mapped).is_none());
+}
+
+#[test]
+fn test_scope_gate_fail_closed_empty() {
+    let empty_scope = SecurityScope {
+        engagement_id: "ENG-EMPTY".to_string(),
+        valid_from: None,
+        valid_until: None,
+        authorized_cidrs: vec![],
+        excluded_cidrs: vec![],
+        authorized_domains: vec![],
+        authorized_ports: vec![],
+        signature: None,
+    };
+
+    let gate = ScopeGate::new(empty_scope);
+    let target_ip: IpAddr = "93.184.216.34".parse().unwrap();
+
+    // Must fail-closed: empty scope authorizes zero assets
+    assert!(matches!(
+        gate.validate_ip(target_ip, 80),
+        Err(NetError::ScopeViolation(_))
+    ));
+    assert!(matches!(
+        gate.validate_target("93.184.216.34", 80),
+        Err(NetError::ScopeViolation(_))
+    ));
+}
+
+#[test]
+fn test_domain_only_scope_rejects_direct_ips() {
+    let domain_scope = SecurityScope {
+        engagement_id: "ENG-DOMAIN-ONLY".to_string(),
+        valid_from: None,
+        valid_until: None,
+        authorized_cidrs: vec![],
+        excluded_cidrs: vec![],
+        authorized_domains: vec!["example.com".to_string()],
+        authorized_ports: vec![80],
+        signature: None,
+    };
+
+    let gate = ScopeGate::new(domain_scope);
+
+    // Direct IP target must be rejected because no CIDRs are whitelisted
+    assert!(matches!(
+        gate.validate_target("8.8.8.8", 80),
+        Err(NetError::ScopeViolation(_))
+    ));
+}

@@ -98,6 +98,14 @@ impl ScopeGate {
     pub fn validate_ip(&self, ip: IpAddr, port: u16) -> Result<PinnedTarget, NetError> {
         self.check_expiration()?;
 
+        // 0. Fail-closed: An empty scope with no CIDRs and no domains authorizes nothing
+        if self.authorized_cidrs.is_empty() && self.scope.authorized_domains.is_empty() {
+            return Err(NetError::ScopeViolation(format!(
+                "Scope configuration for engagement '{}' defines zero authorized CIDRs or domains. All scanning is forbidden.",
+                self.scope.engagement_id
+            )));
+        }
+
         // 1. Bogon & Metadata Check
         if let Some(bogon_reason) = is_bogon_or_metadata(ip) {
             let is_authorized_loopback =
@@ -151,8 +159,22 @@ impl ScopeGate {
     pub fn validate_target(&self, target: &str, port: u16) -> Result<PinnedTarget, NetError> {
         let target = target.trim();
 
+        // 0. Fail-closed check
+        if self.authorized_cidrs.is_empty() && self.scope.authorized_domains.is_empty() {
+            return Err(NetError::ScopeViolation(format!(
+                "Scope configuration for engagement '{}' defines zero authorized CIDRs or domains. All scanning is forbidden.",
+                self.scope.engagement_id
+            )));
+        }
+
         // Direct IP check
         if let Ok(ip) = IpAddr::from_str(target) {
+            if self.authorized_cidrs.is_empty() {
+                return Err(NetError::ScopeViolation(format!(
+                    "Target '{target}' is an IP address, but engagement '{}' authorizes only domain names ({:?}) without CIDR whitelisting.",
+                    self.scope.engagement_id, self.scope.authorized_domains
+                )));
+            }
             return self.validate_ip(ip, port);
         }
 

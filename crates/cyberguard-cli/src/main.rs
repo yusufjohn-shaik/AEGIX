@@ -134,21 +134,51 @@ pub struct ReconArgs {
     pub format: OutputFormat,
 }
 
-fn parse_ports_spec(spec: &str) -> Vec<u16> {
+fn parse_ports_spec(spec: &str) -> anyhow::Result<Vec<u16>> {
     let spec = spec.trim();
-    if spec.eq_ignore_ascii_case("top100") {
-        return DEFAULT_TOP_PORTS.iter().map(|(p, _)| *p).collect();
+    if spec.is_empty() || spec.eq_ignore_ascii_case("top100") {
+        return Ok(DEFAULT_TOP_PORTS.iter().map(|(p, _)| *p).collect());
     }
     if let Some((start_s, end_s)) = spec.split_once('-') {
-        if let (Ok(start), Ok(end)) = (start_s.trim().parse::<u16>(), end_s.trim().parse::<u16>()) {
-            if start <= end {
-                return (start..=end).collect();
-            }
+        let start = start_s.trim().parse::<u16>().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid port range start '{start_s}': must be an integer between 1 and 65535"
+            )
+        })?;
+        let end = end_s.trim().parse::<u16>().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid port range end '{end_s}': must be an integer between 1 and 65535"
+            )
+        })?;
+        if start == 0 || end == 0 {
+            anyhow::bail!("Port numbers must be between 1 and 65535 (got 0)");
         }
+        if start > end {
+            anyhow::bail!("Invalid port range: start port {start} is greater than end port {end}");
+        }
+        return Ok((start..=end).collect());
     }
-    spec.split(',')
-        .filter_map(|s| s.trim().parse::<u16>().ok())
-        .collect()
+
+    let mut ports = Vec::new();
+    for token in spec.split(',') {
+        let t = token.trim();
+        if t.is_empty() {
+            continue;
+        }
+        let p = t.parse::<u16>().map_err(|_| {
+            anyhow::anyhow!("Invalid port '{t}': must be an integer between 1 and 65535")
+        })?;
+        if p == 0 {
+            anyhow::bail!("Port numbers must be between 1 and 65535 (got 0)");
+        }
+        ports.push(p);
+    }
+
+    if ports.is_empty() {
+        anyhow::bail!("No valid ports specified in '{spec}'");
+    }
+
+    Ok(ports)
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -529,7 +559,7 @@ async fn main() -> anyhow::Result<()> {
                 verify_scope_hmac(&gate.scope, key.as_bytes())?;
             }
 
-            let parsed_ports = parse_ports_spec(&args.ports);
+            let parsed_ports = parse_ports_spec(&args.ports)?;
             let engine = NetworkEngine::new(gate)
                 .with_concurrency(args.concurrency)
                 .with_timeout(std::time::Duration::from_millis(args.timeout))
