@@ -225,7 +225,10 @@ impl ScopeGate {
             }
         }
 
-        let pinned_ip = first_valid_ip.expect("At least one address resolved");
+        let pinned_ip = first_valid_ip.ok_or_else(|| NetError::DnsResolutionFailed {
+            host: target.to_string(),
+            reason: "DNS resolution returned 0 IP records".to_string(),
+        })?;
         Ok(PinnedTarget::new(target, pinned_ip, port))
     }
 }
