@@ -60,7 +60,7 @@ pub enum Commands {
     /// Synthesize and apply syntax-preserving AST code fixes
     Fix(FixArgs),
 
-    /// Launch CyberGuard as an AI agent Model Context Protocol (MCP) server
+    /// Launch Aegix as an AI agent Model Context Protocol (MCP) server
     Mcp(McpArgs),
 }
 
@@ -568,7 +568,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 AuditFormat::Terminal => {
                     println!(
-                        "🛡️  CyberGuard SCA & Supply Chain Auditor v{}",
+                        "🛡️  Aegix SCA & Supply Chain Auditor v{}",
                         env!("CARGO_PKG_VERSION")
                     );
                     println!("Target: {}", target_path.display());
@@ -659,13 +659,13 @@ async fn main() -> anyhow::Result<()> {
                 }
                 OutputFormat::Sarif => {
                     let sarif = report.sarif.unwrap_or_else(|| {
-                        SarifLog::new("CyberGuard Network Recon Engine", "0.8.0")
+                        SarifLog::new("Aegix Network Recon Engine", env!("CARGO_PKG_VERSION"))
                     });
                     println!("{}", serde_json::to_string_pretty(&sarif)?);
                 }
                 OutputFormat::Terminal => {
                     println!(
-                        "🛡️  CyberGuard Network Reconnaissance Engine v{}",
+                        "🛡️  Aegix Network Reconnaissance Engine v{}",
                         env!("CARGO_PKG_VERSION")
                     );
                     if let Some(ref eng) = report.engagement_id {
@@ -778,7 +778,7 @@ async fn main() -> anyhow::Result<()> {
                     println!("{}", serde_json::to_string_pretty(&report.sarif_log)?);
                 }
                 OutputFormat::Terminal => {
-                    println!("🛡️  CyberGuard DAST Engine v{}", env!("CARGO_PKG_VERSION"));
+                    println!("🛡️  Aegix DAST Engine v{}", env!("CARGO_PKG_VERSION"));
                     println!("Target: {}", report.target);
                     println!(
                         "Probed Endpoints / Checks: {} | Discovered Vulnerabilities: {}",
@@ -826,7 +826,7 @@ async fn main() -> anyhow::Result<()> {
             println!("[+] Nodes: 0 | Edges: 0 | Exploit Chains: 0");
         }
         Some(Commands::Fix(args)) => {
-            println!("🛠️  CyberGuard AST Auto-Remediation Engine");
+            println!("🛠️  Aegix AST Auto-Remediation Engine");
             println!(
                 "Target: {} (auto={}, dry_run={})",
                 args.path.display(),
@@ -835,7 +835,7 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Some(Commands::Mcp(args)) => {
-            println!("🤖 CyberGuard Model Context Protocol (MCP) Server");
+            println!("🤖 Aegix Model Context Protocol (MCP) Server");
             if let Some(port) = args.port {
                 println!("Starting SSE transport on port {}", port);
             } else {
@@ -844,10 +844,10 @@ async fn main() -> anyhow::Result<()> {
         }
         None => {
             println!(
-                "🛡️  CyberGuard {} - Next-Generation Autonomous Vulnerability Intelligence",
+                "🛡️  Aegix {} - Next-Generation Autonomous Vulnerability Intelligence",
                 env!("CARGO_PKG_VERSION")
             );
-            println!("Run 'cyberguard --help' for available commands.");
+            println!("Run 'aegix --help' for available commands.");
         }
     }
 
