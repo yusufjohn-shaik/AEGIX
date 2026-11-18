@@ -19,17 +19,19 @@ These items address core credibility, developer adoption primitives, parser robu
   - Run `aegix scan .` (SAST) on the workspace itself and verify SARIF telemetry export.
 - [x] **Project Renaming Decision & Refactor:** Migrated away from the generic/trademark-conflicted name *"CyberGuard"* to **Aegix** (`aegix`). Updated CLI binary target, Clap definitions, and integration tests.
 
-### Phase 1.2: Core Adoption Primitives (In-Engine Mechanics)
-- [ ] **Baseline File Support (`--baseline <FILE>`):**
-  - Implement `--save-baseline .aegix-baseline.json` and `--baseline .aegix-baseline.json`.
-  - Suppress pre-existing legacy findings so enterprise teams can adopt the scanner on legacy repositories without breaking CI builds.
-- [ ] **Inline Suppression Comments:**
+### Phase 1.2: Core Adoption Primitives (In-Engine Mechanics - Completed ✅)
+- [x] **Baseline File Support (`--baseline <FILE>`):**
+  - Implemented `--save-baseline .aegix-baseline.json` and `--baseline .aegix-baseline.json`.
+  - Suppresses pre-existing legacy findings so enterprise teams can adopt the scanner on legacy repositories without breaking CI builds.
+- [x] **Inline Suppression Comments:**
   - Support code comments to suppress specific findings in code:
-    - `# aegix:ignore <RULE_ID> [reason]` (Python, Bash, YAML)
+    - `# aegix:ignore <RULE_ID> [reason]` (Python, Bash, YAML, Dockerfile)
     - `// aegix:ignore <RULE_ID> [reason]` (Rust, Go, C/C++, JS/TS)
-    - `/* aegix:ignore <RULE_ID> */` (CSS, Multi-line)
-- [ ] **Confidence Ratings on Findings:**
-  - Add typed confidence enum (`High`, `Medium`, `Low`) to every `SarifResult` / `Finding` alongside Severity.
+    - `/* aegix:ignore <RULE_ID> */` (CSS, C/Rust block comments)
+    - `<!-- aegix:ignore <RULE_ID> -->` (HTML/XML)
+    - Backward compatible with `cyberguard:ignore`.
+- [x] **Confidence Ratings on Findings:**
+  - Added typed confidence enum (`High`, `Medium`, `Low`) to every `SarifResult` / `Finding` alongside Severity and integrated into SARIF metadata and terminal reporting.
 
 ### Phase 1.3: Parser Rigor & Defensive Hardening
 - [ ] **Parser Fuzz Testing (`cargo-fuzz` / libFuzzer):**

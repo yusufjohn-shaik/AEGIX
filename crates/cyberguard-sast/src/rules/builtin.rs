@@ -14,7 +14,7 @@
 
 //! Built-in static analysis security rules covering core OWASP Top 10 vulnerabilities.
 
-use cyberguard_core::SarifLevel;
+use cyberguard_core::{Confidence, SarifLevel};
 
 use super::rule::SastRule;
 
@@ -29,7 +29,7 @@ pub fn default_rules() -> Vec<SastRule> {
             "Potential SQL injection via raw string interpolation or concatenation. Use parameterized queries or prepared statements.",
             "https://cwe.mitre.org/data/definitions/89.html",
             "CWE-89",
-        ).expect("Valid SQLI rule regex"),
+        ).expect("Valid SQLI rule regex").with_confidence(Confidence::High),
 
         SastRule::new(
             "CG-CMDI-001",
@@ -39,7 +39,7 @@ pub fn default_rules() -> Vec<SastRule> {
             "Potential OS command injection via unescaped string in command invocation. Avoid executing raw shell commands with user inputs.",
             "https://cwe.mitre.org/data/definitions/78.html",
             "CWE-78",
-        ).expect("Valid CMDI rule regex"),
+        ).expect("Valid CMDI rule regex").with_confidence(Confidence::High),
 
         SastRule::new(
             "CG-SECR-001",
@@ -49,7 +49,7 @@ pub fn default_rules() -> Vec<SastRule> {
             "Hardcoded cryptographic secret or API token detected in source code. Store secrets in environment variables or a secret vault.",
             "https://cwe.mitre.org/data/definitions/798.html",
             "CWE-798",
-        ).expect("Valid SECR rule regex"),
+        ).expect("Valid SECR rule regex").with_confidence(Confidence::High),
 
         SastRule::new(
             "CG-PATH-001",
@@ -59,7 +59,7 @@ pub fn default_rules() -> Vec<SastRule> {
             "Potential directory traversal via unvalidated relative path sequence. Sanitize and canonicalize file paths.",
             "https://cwe.mitre.org/data/definitions/22.html",
             "CWE-22",
-        ).expect("Valid PATH rule regex"),
+        ).expect("Valid PATH rule regex").with_confidence(Confidence::Medium),
 
         SastRule::new(
             "CG-CRYP-001",
@@ -69,6 +69,6 @@ pub fn default_rules() -> Vec<SastRule> {
             "Broken or cryptographically weak hashing algorithm (MD5/SHA1) detected. Upgrade to SHA-256, SHA-3, or BLAKE3.",
             "https://cwe.mitre.org/data/definitions/327.html",
             "CWE-327",
-        ).expect("Valid CRYP rule regex"),
+        ).expect("Valid CRYP rule regex").with_confidence(Confidence::Medium),
     ]
 }

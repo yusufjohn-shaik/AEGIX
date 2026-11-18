@@ -1,7 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
-use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog};
+use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog, SarifResult};
+use cyberguard_core::AegixBaseline;
 use cyberguard_dast::{DastEngine, DastScanner, DastTarget, FindingSeverity};
 use cyberguard_net::{
     verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
@@ -72,6 +73,14 @@ pub struct ScanArgs {
     /// Output report format
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
     pub format: OutputFormat,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
+
+    /// Filter findings against a baseline snapshot file, suppressing known alerts
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
 
     /// Minimum severity threshold
     #[arg(long, value_name = "LEVEL")]
@@ -344,9 +353,35 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
+            let mut all_findings: Vec<SarifResult> = sast_findings
+                .into_iter()
+                .chain(secret_findings)
+                .chain(container_sarif)
+                .collect();
+
+            // Save baseline snapshot if requested
+            if let Some(ref save_path) = args.save_baseline {
+                let baseline = AegixBaseline::from_results(&all_findings);
+                baseline.save_to_path(save_path)?;
+                if args.format == OutputFormat::Terminal {
+                    println!(
+                        "💾 Saved baseline snapshot with {} finding(s) to {}",
+                        baseline.total_findings,
+                        save_path.display()
+                    );
+                }
+            }
+
+            // Filter against baseline snapshot if requested
+            let mut suppressed_count = 0;
+            if let Some(ref baseline_path) = args.baseline {
+                let baseline = AegixBaseline::load_from_path(baseline_path)?;
+                suppressed_count = baseline.filter_results(&mut all_findings);
+            }
+
             match args.format {
                 OutputFormat::Sarif | OutputFormat::Json => {
-                    let mut log = SarifLog::new("CyberGuard Scanner", env!("CARGO_PKG_VERSION"));
+                    let mut log = SarifLog::new("Aegix Scanner", env!("CARGO_PKG_VERSION"));
                     if run_sast {
                         for rule in sast_engine.rules() {
                             log.add_rule(ReportingDescriptor {
@@ -432,35 +467,36 @@ async fn main() -> anyhow::Result<()> {
                             });
                         }
                     }
-                    for finding in sast_findings {
-                        log.add_result(finding);
-                    }
-                    for finding in secret_findings {
-                        log.add_result(finding);
-                    }
-                    for finding in container_sarif {
+                    for finding in all_findings {
                         log.add_result(finding);
                     }
                     println!("{}", serde_json::to_string_pretty(&log)?);
                 }
                 OutputFormat::Terminal => {
-                    println!("🛡️  CyberGuard Scanner v{}", env!("CARGO_PKG_VERSION"));
+                    println!("🛡️  Aegix Scanner v{}", env!("CARGO_PKG_VERSION"));
                     println!("Target: {}", args.path.display());
                     println!("Workspace: {}", config.general.workspace_dir.display());
+                    if args.baseline.is_some() && suppressed_count > 0 {
+                        println!(
+                            "ℹ️  Baseline active: {} pre-existing finding(s) suppressed.",
+                            suppressed_count
+                        );
+                    }
                     println!("{:-<80}", "");
 
-                    let total_count =
-                        sast_findings.len() + secret_findings.len() + container_sarif.len();
-                    if total_count == 0 {
-                        println!("✅ No security vulnerabilities, leaked credentials, or container misconfigurations detected.");
+                    if all_findings.is_empty() {
+                        if suppressed_count > 0 {
+                            println!(
+                                "✅ No new security vulnerabilities or regressions detected ({} suppressed by baseline).",
+                                suppressed_count
+                            );
+                        } else {
+                            println!("✅ No security vulnerabilities, leaked credentials, or container misconfigurations detected.");
+                        }
                     } else {
-                        println!("Found {} security alert(s):", total_count);
+                        println!("Found {} security alert(s):", all_findings.len());
                         println!();
-                        for f in sast_findings
-                            .iter()
-                            .chain(secret_findings.iter())
-                            .chain(container_sarif.iter())
-                        {
+                        for f in &all_findings {
                             let loc_str = if let Some(loc) = f.locations.first() {
                                 if let Some(phys) = &loc.physical_location {
                                     if let Some(reg) = &phys.region {
@@ -489,6 +525,9 @@ async fn main() -> anyhow::Result<()> {
 
                             println!("{} [{}] {}", sev_label, f.rule_id, loc_str);
                             println!("   └── {}", f.message.text);
+                            if let Some(conf) = f.confidence {
+                                println!("   └── Confidence: {}", conf);
+                            }
                             if let Some(fps) = &f.partial_fingerprints {
                                 if let Some(hash) = fps.get("logicalLocationTokenHash/v1") {
                                     let preview = if hash.len() > 16 { &hash[..16] } else { hash };

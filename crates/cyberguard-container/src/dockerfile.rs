@@ -348,6 +348,9 @@ impl DockerfileLinter {
             }
         }
 
+        let suppressions = cyberguard_core::SuppressionMap::parse(content);
+        findings.retain(|f| !suppressions.is_suppressed(f.line_number, &f.rule_id));
+
         Ok(findings)
     }
 }

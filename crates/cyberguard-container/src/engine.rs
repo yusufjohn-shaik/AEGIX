@@ -119,7 +119,8 @@ impl ContainerScanner for ContainerEngine {
             .iter()
             .map(|f| {
                 let msg = format!("{}: {}", f.message, f.recommendation);
-                let mut res = SarifResult::new(&f.rule_id, f.severity, msg);
+                let mut res = SarifResult::new(&f.rule_id, f.severity, msg)
+                    .with_confidence(cyberguard_core::Confidence::High);
                 res.add_location(
                     "Dockerfile",
                     f.line_number,

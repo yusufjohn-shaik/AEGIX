@@ -15,7 +15,7 @@
 //! In-process Static Application Security Testing (SAST) rule execution engine.
 
 use async_trait::async_trait;
-use cyberguard_core::{CyberguardError, SarifResult};
+use cyberguard_core::{CyberguardError, SarifResult, SuppressionMap};
 use std::fs;
 
 use crate::context::ScanContext;
@@ -62,13 +62,20 @@ impl NativeRuleEngine {
     /// Scan string content of a file against all registered rules.
     pub fn scan_file_content(&self, file_path: &str, content: &str) -> Vec<SarifResult> {
         let mut results = Vec::new();
+        let suppressions = SuppressionMap::parse(content);
 
         for rule in &self.rules {
             for mat in rule.pattern.find_iter(content) {
                 let (start_line, start_col) = Self::calculate_position(content, mat.start());
                 let (end_line, end_col) = Self::calculate_position(content, mat.end());
 
-                let mut result = SarifResult::new(&rule.id, rule.severity, &rule.message);
+                // Skip if suppressed via inline comment directive
+                if suppressions.is_suppressed(start_line, &rule.id) {
+                    continue;
+                }
+
+                let mut result = SarifResult::new(&rule.id, rule.severity, &rule.message)
+                    .with_confidence(rule.confidence);
                 result.add_location(
                     file_path,
                     start_line,

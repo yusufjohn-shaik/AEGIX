@@ -14,7 +14,7 @@
 
 //! Rule definitions and severity thresholds for static analysis scanning.
 
-use cyberguard_core::SarifLevel;
+use cyberguard_core::{Confidence, SarifLevel};
 use regex::Regex;
 
 /// Definition of a single static analysis security rule.
@@ -26,6 +26,8 @@ pub struct SastRule {
     pub name: String,
     /// Default SARIF severity level.
     pub severity: SarifLevel,
+    /// Confidence rating for this rule.
+    pub confidence: Confidence,
     /// Linear-time regular expression pattern.
     pub pattern: Regex,
     /// Vulnerability remediation guidance message.
@@ -52,11 +54,18 @@ impl SastRule {
             id: id.into(),
             name: name.into(),
             severity,
+            confidence: Confidence::High,
             pattern,
             message: message.into(),
             help_uri: help_uri.into(),
             cwe: cwe.into(),
         })
+    }
+
+    /// Builder method to specify rule confidence.
+    pub fn with_confidence(mut self, confidence: Confidence) -> Self {
+        self.confidence = confidence;
+        self
     }
 }
 

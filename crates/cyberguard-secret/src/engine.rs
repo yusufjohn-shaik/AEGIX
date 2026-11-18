@@ -21,7 +21,7 @@ use crate::models::{SecretFinding, SecretRule};
 use crate::rules::default_rules;
 use crate::traits::SecretScanner;
 use async_trait::async_trait;
-use cyberguard_core::SarifResult;
+use cyberguard_core::{Confidence, SarifResult, SuppressionMap};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -69,11 +69,16 @@ impl SecretEngine {
     /// Scans a single text file's contents for secret patterns and high entropy tokens.
     fn scan_file_content(&self, path: &Path, content: &str) -> Vec<SecretFinding> {
         let mut findings = Vec::new();
+        let suppressions = SuppressionMap::parse(content);
 
         for (line_idx, line) in content.lines().enumerate() {
             let line_number = line_idx + 1;
 
             for rule in &self.rules {
+                if suppressions.is_suppressed(line_number, &rule.id) {
+                    continue;
+                }
+
                 for caps in rule.pattern.captures_iter(line) {
                     let (secret_text, start_offset) = if let Some(m) = caps.get(1) {
                         (m.as_str(), m.start())
@@ -176,7 +181,8 @@ impl SecretScanner for SecretEngine {
         findings
             .iter()
             .map(|f| {
-                let mut res = SarifResult::new(&f.rule_id, f.severity, &f.message);
+                let mut res = SarifResult::new(&f.rule_id, f.severity, &f.message)
+                    .with_confidence(Confidence::High);
                 res.add_location(
                     f.file_path.display().to_string(),
                     f.line_number,

@@ -109,6 +109,8 @@ pub struct SarifResult {
     pub rule_id: String,
     pub level: SarifLevel,
     pub message: Message,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<Confidence>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locations: Vec<Location>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -130,6 +132,7 @@ impl SarifResult {
             message: Message {
                 text: message.into(),
             },
+            confidence: None,
             locations: Vec::new(),
             code_flows: Vec::new(),
             fixes: Vec::new(),
@@ -206,6 +209,43 @@ impl SarifResult {
         self.partial_fingerprints = Some(map);
     }
 
+    /// Builder method to attach confidence level.
+    pub fn with_confidence(mut self, confidence: Confidence) -> Self {
+        self.set_confidence(confidence);
+        self
+    }
+
+    /// Set confidence level and sync to properties dictionary.
+    pub fn set_confidence(&mut self, confidence: Confidence) {
+        self.confidence = Some(confidence);
+        let mut props = match self.properties.take() {
+            Some(serde_json::Value::Object(map)) => map,
+            _ => serde_json::Map::new(),
+        };
+        props.insert("confidence".to_string(), serde_json::json!(confidence));
+        self.properties = Some(serde_json::Value::Object(props));
+    }
+
+    /// Compute or retrieve the deterministic fingerprint for this finding.
+    pub fn fingerprint(&self) -> String {
+        if let Some(fps) = &self.partial_fingerprints {
+            if let Some(hash) = fps.get("logicalLocationTokenHash/v1") {
+                return hash.clone();
+            }
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(self.rule_id.as_bytes());
+        if let Some(loc) = self.locations.first() {
+            if let Some(ref phys) = loc.physical_location {
+                hasher.update(phys.artifact_location.uri.as_bytes());
+                if let Some(ref reg) = phys.region {
+                    hasher.update(reg.start_line.to_string().as_bytes());
+                }
+            }
+        }
+        format!("{:x}", hasher.finalize())
+    }
+
     /// Convert this SARIF result into an OCSF v1.3.0 Vulnerability Finding event.
     pub fn to_ocsf(&self, product_name: &str) -> OcsfVulnerabilityFinding {
         let cvss = self
@@ -277,6 +317,25 @@ pub enum SarifLevel {
     Note,
     Warning,
     Error,
+}
+
+/// Confidence rating representing the likelihood that an alert is a true positive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Confidence {
+    Low,
+    Medium,
+    High,
+}
+
+impl std::fmt::Display for Confidence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Confidence::Low => write!(f, "Low"),
+            Confidence::Medium => write!(f, "Medium"),
+            Confidence::High => write!(f, "High"),
+        }
+    }
 }
 
 /// Encapsulates human-readable message text.
