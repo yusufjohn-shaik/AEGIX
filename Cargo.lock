@@ -325,11 +325,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyberguard-api"
+version = "0.9.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "clap",
+ "cyberguard-core",
+ "cyberguard-dast",
+ "cyberguard-net",
+ "cyberguard-proc",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "cyberguard-cli"
 version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
+ "cyberguard-api",
  "cyberguard-container",
  "cyberguard-core",
  "cyberguard-dast",

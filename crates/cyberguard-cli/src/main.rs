@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use cyberguard_api::{ApiConfig, ApiEngine, ApiScanner};
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog, SarifResult};
@@ -53,6 +54,9 @@ pub enum Commands {
 
     /// Perform dynamic application security testing (DAST) with Scope Gate enforcement
     Dast(DastArgs),
+
+    /// Audit and fuzz API contracts (OpenAPI 3.0/3.1, Swagger 2.0)
+    Api(ApiArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -186,6 +190,64 @@ pub struct DastArgs {
     pub headers: Vec<String>,
 
     /// Output report format
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct ApiArgs {
+    /// Path to OpenAPI/Swagger specification file (.yaml, .yml, .json)
+    pub spec_path: PathBuf,
+
+    /// Target base URL for live API contract fuzzing (e.g. https://api.example.com)
+    #[arg(long, value_name = "URL")]
+    pub target: Option<String>,
+
+    /// Enable active contract boundary mutation fuzzing
+    #[arg(long, default_value_t = false)]
+    pub fuzz: bool,
+
+    /// Allow fuzzing potentially destructive HTTP methods (POST, PUT, DELETE, PATCH)
+    #[arg(long, default_value_t = false)]
+    pub allow_destructive: bool,
+
+    /// Dry run: plan and display planned fuzzer payloads without transmitting HTTP requests
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+
+    /// Path to ScopeGate authorization file or target scope definition
+    #[arg(long, value_name = "FILE")]
+    pub scope: Option<PathBuf>,
+
+    /// Scope authorization HMAC key for verified enterprise scans
+    #[arg(long, value_name = "KEY", env = "CYBERGUARD_SCOPE_KEY")]
+    pub scope_key: Option<String>,
+
+    /// Maximum requests per second to avoid triggering live rate limits
+    #[arg(long, default_value_t = 25)]
+    pub max_rps: u32,
+
+    /// HTTP request timeout in milliseconds
+    #[arg(long, default_value_t = 5000)]
+    pub timeout: u64,
+
+    /// Custom HTTP header to inject (repeatable, e.g. -H "Authorization: Bearer token")
+    #[arg(short = 'H', long = "header", value_name = "HEADER")]
+    pub headers: Vec<String>,
+
+    /// Allow insecure TLS connections (skip certificate verification)
+    #[arg(long, default_value_t = false)]
+    pub insecure: bool,
+
+    /// Execute Schemathesis property-based fuzzing via cyberguard-proc runner
+    #[arg(long, default_value_t = false)]
+    pub schemathesis: bool,
+
+    /// Path to baseline snapshot file to suppress known issues
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Output report format: terminal, sarif, json
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
     pub format: OutputFormat,
 }
@@ -810,6 +872,85 @@ async fn main() -> anyhow::Result<()> {
                             println!("   └── Title: {}", f.title);
                             println!("   └── Severity: {}", color);
                             println!("   └── Evidence: {}", f.evidence);
+                            println!("   └── Remediation: {}", f.remediation);
+                            println!();
+                        }
+                    }
+                    println!("{:-<80}", "");
+                }
+            }
+        }
+        Some(Commands::Api(args)) => {
+            let api_config = ApiConfig {
+                spec_path: args.spec_path.clone(),
+                target: args.target.clone(),
+                fuzz: args.fuzz,
+                allow_destructive: args.allow_destructive,
+                dry_run: args.dry_run,
+                scope_path: args.scope.clone(),
+                scope_key: args.scope_key.clone(),
+                max_rps: args.max_rps,
+                timeout_ms: args.timeout,
+                headers: args.headers.clone(),
+                insecure: args.insecure,
+                schemathesis: args.schemathesis,
+                baseline_path: args.baseline.clone(),
+                format: format!("{:?}", args.format).to_lowercase(),
+            };
+
+            let engine = ApiEngine::new();
+            let report = engine.scan(&api_config).await?;
+
+            match args.format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                OutputFormat::Sarif => {
+                    let sarif = engine.generate_sarif(&report);
+                    println!("{}", serde_json::to_string_pretty(&sarif)?);
+                }
+                OutputFormat::Terminal => {
+                    println!(
+                        "🛡️  Aegix API Security Engine v{}",
+                        env!("CARGO_PKG_VERSION")
+                    );
+                    println!("Specification: {}", report.spec_path);
+                    println!("Dialect: {}", report.spec_version);
+                    println!(
+                        "Audited Endpoints: {} | Findings Discovered: {}",
+                        report.operations_count,
+                        report.findings.len()
+                    );
+                    if report.fuzzed_endpoints > 0 {
+                        println!(
+                            "Fuzzed Endpoints: {} | Probes Sent: {} | Crash/Drift Findings: {}",
+                            report.fuzzed_endpoints,
+                            report.fuzzer_requests_sent,
+                            report.fuzzer_errors_found
+                        );
+                    }
+                    println!("{:-<80}", "");
+
+                    if report.findings.is_empty() {
+                        println!("✅ No API contract security vulnerabilities or anti-patterns detected.");
+                    } else {
+                        for f in &report.findings {
+                            let (badge, color) = match f.severity {
+                                SarifLevel::Error => ("🔴 ERROR", "High/Critical"),
+                                SarifLevel::Warning => ("🟡 WARN ", "Medium"),
+                                SarifLevel::Note => ("🔵 NOTE ", "Low"),
+                                SarifLevel::None => ("ℹ️  INFO ", "Info"),
+                            };
+                            if let Some(ref m) = f.method {
+                                println!("{} [{}] {} {}", badge, f.rule_id, m, f.path);
+                            } else {
+                                println!("{} [{}] {}", badge, f.rule_id, f.path);
+                            }
+                            println!("   └── Title: {}", f.title);
+                            println!("   └── Severity: {}", color);
+                            println!("   └── Confidence: {:?}", f.confidence);
+                            println!("   └── Location: {}", f.json_pointer);
+                            println!("   └── Description: {}", f.description);
                             println!("   └── Remediation: {}", f.remediation);
                             println!();
                         }

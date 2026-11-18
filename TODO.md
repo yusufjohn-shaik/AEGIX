@@ -44,7 +44,7 @@ These items address core credibility, developer adoption primitives, parser robu
   - Ensure every security rule in SAST, Secret, Container, and DAST has paired **known-bad (true positive)** and **known-good (true negative)** test fixtures.
 
 ### Phase 1.4: Core Engine Upgrades (Modules 10–15)
-- [ ] **Module 10: API Security & Spec Fuzzing (`aegix-api`):** OpenAPI 3.0 / Swagger contract validator and autonomous fuzzing engine.
+- [x] **Module 10: API Security & Spec Fuzzing (`cyberguard-api` / `aegix-api`):** OpenAPI 3.0 / 3.1 & Swagger 2.0 contract validator and autonomous contract boundary mutation fuzzing engine.
 - [ ] **Module 11: Cloud Security (`aegix-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
 - [ ] **Module 12: IaC Security (`aegix-iac`):** Terraform, Kubernetes, Helm static security linters.
 - [ ] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline`):** GitHub Actions workflow auditor and SLSA provenance verifier.

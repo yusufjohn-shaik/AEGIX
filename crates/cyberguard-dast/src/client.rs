@@ -111,6 +111,18 @@ impl DastClient {
         headers: Option<&HashMap<String, String>>,
         scope: &ScopeGate,
     ) -> Result<(StatusCode, HeaderMap, Vec<u8>), DastError> {
+        self.send_request_with_body(method, url, headers, None, scope)
+            .await
+    }
+
+    pub async fn send_request_with_body(
+        &self,
+        method: Method,
+        url: &Url,
+        headers: Option<&HashMap<String, String>>,
+        body: Option<Vec<u8>>,
+        scope: &ScopeGate,
+    ) -> Result<(StatusCode, HeaderMap, Vec<u8>), DastError> {
         let mut current_url = url.clone();
         let mut hops = 0;
 
@@ -208,6 +220,10 @@ impl DastClient {
                         req_builder = req_builder.header(name, val);
                     }
                 }
+            }
+
+            if let Some(ref b) = body {
+                req_builder = req_builder.body(b.clone());
             }
 
             let response = tokio::time::timeout(self.timeout, req_builder.send())

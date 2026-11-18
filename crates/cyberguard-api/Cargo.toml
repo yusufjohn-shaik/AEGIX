@@ -1,0 +1,28 @@
+[package]
+name = "cyberguard-api"
+description = "API security, OpenAPI/Swagger contract validation, and autonomous contract fuzzing engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-net = { workspace = true }
+cyberguard-dast = { workspace = true }
+cyberguard-proc = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+clap = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
