@@ -21,13 +21,13 @@ These items address core credibility, developer adoption primitives, parser robu
 
 ### Phase 1.2: Core Adoption Primitives (In-Engine Mechanics)
 - [ ] **Baseline File Support (`--baseline <FILE>`):**
-  - Implement `--save-baseline .cyberguard-baseline.json` and `--baseline .cyberguard-baseline.json`.
+  - Implement `--save-baseline .aegix-baseline.json` and `--baseline .aegix-baseline.json`.
   - Suppress pre-existing legacy findings so enterprise teams can adopt the scanner on legacy repositories without breaking CI builds.
 - [ ] **Inline Suppression Comments:**
   - Support code comments to suppress specific findings in code:
-    - `# cyberguard:ignore <RULE_ID> [reason]` (Python, Bash, YAML)
-    - `// cyberguard:ignore <RULE_ID> [reason]` (Rust, Go, C/C++, JS/TS)
-    - `/* cyberguard:ignore <RULE_ID> */` (CSS, Multi-line)
+    - `# aegix:ignore <RULE_ID> [reason]` (Python, Bash, YAML)
+    - `// aegix:ignore <RULE_ID> [reason]` (Rust, Go, C/C++, JS/TS)
+    - `/* aegix:ignore <RULE_ID> */` (CSS, Multi-line)
 - [ ] **Confidence Ratings on Findings:**
   - Add typed confidence enum (`High`, `Medium`, `Low`) to every `SarifResult` / `Finding` alongside Severity.
 
@@ -42,29 +42,29 @@ These items address core credibility, developer adoption primitives, parser robu
   - Ensure every security rule in SAST, Secret, Container, and DAST has paired **known-bad (true positive)** and **known-good (true negative)** test fixtures.
 
 ### Phase 1.4: Core Engine Upgrades (Modules 10–15)
-- [ ] **Module 10: API Security & Spec Fuzzing (`cyberguard-api`):** OpenAPI 3.0 / Swagger contract validator and autonomous fuzzing engine.
-- [ ] **Module 11: Cloud Security (`cyberguard-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
-- [ ] **Module 12: IaC Security (`cyberguard-iac`):** Terraform, Kubernetes, Helm static security linters.
-- [ ] **Module 13: CI/CD Pipeline & SLSA Provenance (`cyberguard-pipeline`):** GitHub Actions workflow auditor and SLSA provenance verifier.
-- [ ] **Module 14: Mobile Security (`cyberguard-mobile`):** Android APK / iOS IPA manifest and static security auditor.
-- [ ] **Module 15: Threat Modeling & ATT&CK Matrix (`cyberguard-threat`):** Automated MITRE ATT&CK mapping engine.
+- [ ] **Module 10: API Security & Spec Fuzzing (`aegix-api`):** OpenAPI 3.0 / Swagger contract validator and autonomous fuzzing engine.
+- [ ] **Module 11: Cloud Security (`aegix-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
+- [ ] **Module 12: IaC Security (`aegix-iac`):** Terraform, Kubernetes, Helm static security linters.
+- [ ] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline`):** GitHub Actions workflow auditor and SLSA provenance verifier.
+- [ ] **Module 14: Mobile Security (`aegix-mobile`):** Android APK / iOS IPA manifest and static security auditor.
+- [ ] **Module 15: Threat Modeling & ATT&CK Matrix (`aegix-threat`):** Automated MITRE ATT&CK mapping engine.
 - [ ] **Live Vulnerability Advisory Sync:** Automated synchronization with live OSV.dev and GitHub Security Advisories.
 - [ ] **Verified Secret Liveness Checks:** Optional safe active API verification (`--verify-secrets`) to test if discovered keys are active.
 
 ### Phase 1.5: The Autonomous Differentiators (Modules 16–19)
-- [ ] **Module 16: Model Context Protocol (MCP) Server (`cyberguard-mcp`):** Native JSON-RPC MCP server enabling Cursor, Claude Code, Antigravity, and AI coding agents to invoke the scanner directly.
-- [ ] **Module 17: Attack Path Engine (`cyberguard-graph`):** In-memory Directed Acyclic Graph (DAG) connecting external entrypoints $\to$ API routes $\to$ reachable CVEs $\to$ leaked secrets $\to$ cloud privilege escalation.
-- [ ] **Module 18: Tri-Factor Prioritizer (`cyberguard-risk`):**
+- [ ] **Module 16: Model Context Protocol (MCP) Server (`aegix-mcp`):** Native JSON-RPC MCP server enabling Cursor, Claude Code, Antigravity, and AI coding agents to invoke the scanner directly.
+- [ ] **Module 17: Attack Path Engine (`aegix-graph`):** In-memory Directed Acyclic Graph (DAG) connecting external entrypoints $\to$ API routes $\to$ reachable CVEs $\to$ leaked secrets $\to$ cloud privilege escalation.
+- [ ] **Module 18: Tri-Factor Prioritizer (`aegix-risk`):**
   - Implement real single-language reachability analysis (Rust call-graph via `cargo metadata` first).
   - Compute mathematical risk: $\text{Score} = \text{CVSS} \times \text{EPSS} \times \text{Reachability}$.
-- [ ] **Module 19: Tree-sitter AST & Autonomous Remediation (`cyberguard-fix`):**
+- [ ] **Module 19: Tree-sitter AST & Autonomous Remediation (`aegix-fix`):**
   - Transition SAST from pure regex to Tree-sitter AST parsing for Python, JavaScript/TypeScript, and Go.
   - Implement intra-procedural taint tracking (Sources $\to$ Sanitizers $\to$ Sinks).
   - Apply surgical AST patches and auto-generate unit tests verifying eradication.
 
 ### Phase 1.6: Developer Interfaces (Modules 20–21)
-- [ ] **Module 20: TUI Dashboard & Reporting (`cyberguard-ui`):** `ratatui` terminal interface and executive PDF/HTML report generators.
-- [ ] **Module 21: Release Automation & Multi-Arch Packaging (`cyberguard-dist`):** Automated cross-compilation pipeline for static binaries.
+- [ ] **Module 20: TUI Dashboard & Reporting (`aegix-ui`):** `ratatui` terminal interface and executive PDF/HTML report generators.
+- [ ] **Module 21: Release Automation & Multi-Arch Packaging (`aegix-dist`):** Automated cross-compilation pipeline for static binaries.
 
 ---
 
