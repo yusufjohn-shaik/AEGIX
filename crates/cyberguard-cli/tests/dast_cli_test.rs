@@ -62,12 +62,15 @@ async fn test_dast_with_scope_fixture() {
         }
     });
 
+    let mut allowed_gate = gate.clone();
+    allowed_gate.scope.authorized_ports.push(port);
+
     let target_url = Url::parse(&format!("http://127.0.0.1:{}", port)).unwrap();
     let target = DastTarget::new(target_url);
     let engine = DastEngine::new().with_timeout_ms(2000);
 
     let report = engine
-        .scan(&target, &gate)
+        .scan(&target, &allowed_gate)
         .await
         .expect("DAST scan should succeed");
     assert!(report.tested_endpoints_count > 0);

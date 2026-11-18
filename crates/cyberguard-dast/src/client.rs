@@ -82,7 +82,7 @@ impl DastClient {
         })
     }
 
-    pub async fn read_bounded_body(response: Response) -> Result<Vec<u8>, DastError> {
+    pub async fn read_bounded_body(mut response: Response) -> Result<Vec<u8>, DastError> {
         if let Some(cl) = response.content_length() {
             if cl > MAX_BODY_BYTES as u64 {
                 return Err(DastError::BodyTooLarge {
@@ -91,14 +91,17 @@ impl DastClient {
             }
         }
 
-        let bytes = response.bytes().await?;
-        if bytes.len() > MAX_BODY_BYTES {
-            return Err(DastError::BodyTooLarge {
-                limit_bytes: MAX_BODY_BYTES,
-            });
+        let mut body = Vec::with_capacity(8192);
+        while let Some(chunk) = response.chunk().await? {
+            if body.len() + chunk.len() > MAX_BODY_BYTES {
+                return Err(DastError::BodyTooLarge {
+                    limit_bytes: MAX_BODY_BYTES,
+                });
+            }
+            body.extend_from_slice(&chunk);
         }
 
-        Ok(bytes.to_vec())
+        Ok(body)
     }
 
     pub async fn send_request(
@@ -175,8 +178,21 @@ impl DastClient {
                     "CyberGuard-DAST/0.9.0 (Defensive Security Scanner; +https://github.com/yusufjohn-shaik/CYBER-GUARD)",
                 );
 
+            let is_same_origin = current_url.scheme() == url.scheme()
+                && current_url.host_str() == url.host_str()
+                && current_url.port_or_known_default() == url.port_or_known_default();
+
             if let Some(hdrs) = headers {
                 for (k, v) in hdrs {
+                    let k_lower = k.to_ascii_lowercase();
+                    // Strip credentials across origins per RFC 9110
+                    if !is_same_origin
+                        && (k_lower == "authorization"
+                            || k_lower == "cookie"
+                            || k_lower == "proxy-authorization")
+                    {
+                        continue;
+                    }
                     if let (Ok(name), Ok(val)) = (
                         reqwest::header::HeaderName::from_bytes(k.as_bytes()),
                         HeaderValue::from_str(v),

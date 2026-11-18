@@ -663,7 +663,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::Dast(args)) => {
-            let target_url = Url::parse(&args.target)
+            let normalized_target = if !args.target.contains("://") {
+                format!("http://{}", args.target)
+            } else {
+                args.target.clone()
+            };
+            let target_url = Url::parse(&normalized_target)
                 .map_err(|e| anyhow::anyhow!("Invalid target URL '{}': {}", args.target, e))?;
 
             let host = target_url

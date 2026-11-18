@@ -107,13 +107,17 @@ impl DastScanner for DastEngine {
 
         // Phase 1: Baseline Request & Security Header Check
         let is_https = target.url.scheme() == "https";
-        if let Ok((_status, headers, _body)) = client
+        let baseline_res = client
             .send_request(Method::GET, &target.url, Some(&target.headers), scope)
-            .await
-        {
-            tested_count += 1;
-            let header_findings = check_security_headers(&headers, is_https, target.url.path());
-            findings.extend(header_findings);
+            .await;
+
+        match baseline_res {
+            Ok((_status, headers, _body)) => {
+                tested_count += 1;
+                let header_findings = check_security_headers(&headers, is_https, target.url.path());
+                findings.extend(header_findings);
+            }
+            Err(e) => return Err(e),
         }
 
         // Phase 2: Sensitive Endpoint Discovery
