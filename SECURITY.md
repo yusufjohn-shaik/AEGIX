@@ -21,7 +21,7 @@ We provide security patches, updates, and vulnerability disclosures for the foll
 
 ### Method A: GitHub Private Vulnerability Reporting (Recommended)
 Submit a report privately via GitHub:
-1. Navigate to the **Security** tab of the [`yusufjohn-shaik/CYBER-GUARD`](https://github.com/yusufjohn-shaik/CYBER-GUARD) repository.
+1. Navigate to the **Security** tab of the [`yusufjohn-shaik/AEGIX`](https://github.com/yusufjohn-shaik/AEGIX) repository.
 2. Select **Advisories** -> **Report a vulnerability**.
 3. Fill in the advisory template with reproducible steps, proof-of-concept (PoC), and impact assessment.
 

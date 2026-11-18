@@ -5,7 +5,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Rust Version](https://img.shields.io/badge/Rust-1.85%2B-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/yusufjohn-shaik/CYBER-GUARD/dco_and_lint.yml?branch=main&label=CI%20Quality%20Gate&style=flat-square)](https://github.com/yusufjohn-shaik/CYBER-GUARD/actions)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/yusufjohn-shaik/AEGIX/dco_and_lint.yml?branch=main&label=CI%20Quality%20Gate&style=flat-square)](https://github.com/yusufjohn-shaik/AEGIX/actions)
 [![SARIF Standard](https://img.shields.io/badge/Standard-OASIS%20SARIF%20v2.1.0-orange.svg?style=flat-square)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 [![AI Agent Protocol](https://img.shields.io/badge/AI%20Protocol-Model%20Context%20Protocol%20(MCP)-8A2BE2.svg?style=flat-square)](https://modelcontextprotocol.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
@@ -100,7 +100,7 @@ Aegix is a vulnerability intelligence and autonomous remediation platform writte
 ### 1. Build from Source (Pure Rust)
 
 ```bash
-git clone https://github.com/yusufjohn-shaik/CYBER-GUARD.git aegix
+git clone https://github.com/yusufjohn-shaik/AEGIX.git aegix
 cd aegix
 cargo build --release
 ```
@@ -180,7 +180,7 @@ Aegix is an open-source security engineering platform developed in the open.
 Aegix is built **strictly for defensive security auditing, authorized vulnerability research, and continuous remediation**.
 
 - Review our [Legal Safe Harbor Agreement](LEGAL_SAFE_HARBOR.md) covering safe-harbor protections under the US CFAA, UK Computer Misuse Act, and Indian IT Act.
-- Vulnerabilities within Aegix should be reported privately via [GitHub Security Advisories](https://github.com/yusufjohn-shaik/CYBER-GUARD/security/advisories) as detailed in our [Security Policy](SECURITY.md).
+- Vulnerabilities within Aegix should be reported privately via [GitHub Security Advisories](https://github.com/yusufjohn-shaik/AEGIX/security/advisories) as detailed in our [Security Policy](SECURITY.md).
 
 ---
 

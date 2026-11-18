@@ -183,7 +183,7 @@ impl DastClient {
                 .request(method.clone(), current_url.as_str())
                 .header(
                     USER_AGENT,
-                    "CyberGuard-DAST/0.9.0 (Defensive Security Scanner; +https://github.com/yusufjohn-shaik/CYBER-GUARD)",
+                    "Aegix-DAST/0.9.0 (Defensive Security Scanner; +https://github.com/yusufjohn-shaik/AEGIX)",
                 );
 
             let is_same_origin = current_url.scheme() == url.scheme()

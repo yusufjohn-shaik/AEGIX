@@ -405,7 +405,7 @@ async fn main() -> anyhow::Result<()> {
                                 },
                                 full_description: None,
                                 help_uri: Some(
-                                    "https://github.com/yusufjohn-shaik/CYBER-GUARD".to_string(),
+                                    "https://github.com/yusufjohn-shaik/AEGIX".to_string(),
                                 ),
                             });
                         }
@@ -462,7 +462,7 @@ async fn main() -> anyhow::Result<()> {
                                 },
                                 full_description: None,
                                 help_uri: Some(
-                                    "https://github.com/yusufjohn-shaik/CYBER-GUARD".to_string(),
+                                    "https://github.com/yusufjohn-shaik/AEGIX".to_string(),
                                 ),
                             });
                         }

@@ -26,8 +26,7 @@ impl SarifLog {
                     driver: Driver {
                         name: tool_name.to_string(),
                         version: tool_version.to_string(),
-                        information_uri: "https://github.com/yusufjohn-shaik/CYBER-GUARD"
-                            .to_string(),
+                        information_uri: "https://github.com/yusufjohn-shaik/AEGIX".to_string(),
                         rules: Vec::new(),
                     },
                 },
