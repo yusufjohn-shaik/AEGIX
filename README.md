@@ -38,6 +38,7 @@ To maintain transparent, uncompromising security credibility, here is what is li
 | **Secret Detection Engine** | Module 06 | **LIVE ✅** | `cyberguard-secret`, Shannon entropy analysis, multi-provider credentials detection (AWS, GitHub, Stripe, OpenAI, Slack, Keys), surgical masking |
 | **Container & OCI Security** | Module 07 | **LIVE ✅** | `cyberguard-container`, static Dockerfile linter (8 rules), daemonless OCI/tar layer scanner, Alpine/Debian package discovery |
 | **Network Recon & Scope Gate** | Module 08 | **LIVE ✅** | `cyberguard-net`, cryptographic Proof-of-Authorization, DNS TOCTOU-resistant PinnedTarget, async TCP scanner, safe banner grabber, supervised Nmap adapter |
+| **DAST & Dynamic Security Engine** | Module 09 | **LIVE ✅** | `cyberguard-dast`, atomic IP-pinned redirect validation (SSRF/metadata immune), SPA soft-404 content signatures, security headers, context-aware reflection, declarative rules, supervised Nuclei |
 | **MCP AI Agent Server** | Module 16 | **PLANNED 📋** | JSON-RPC Model Context Protocol server for Antigravity, Cursor, and Claude Code |
 | **Attack Path Graph (DAG)** | Module 17 | **PLANNED 📋** | In-memory directed acyclic graph mapping multi-hop exploit chains |
 | **AST Auto-Remediation** | Module 19 | **PLANNED 📋** | Tree-sitter AST syntax patcher and automated regression test generator |
@@ -87,7 +88,7 @@ CyberGuard writes production-ready code fixes:
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        CYBERGUARD CLI & TUI INTERFACE                  │
-│   cyberguard [scan | audit | recon | trace | fix | mcp]                │
+│   cyberguard [scan | audit | recon | dast | trace | fix | mcp]         │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     ▼
@@ -190,6 +191,14 @@ CyberGuard includes an asynchronous pure-Rust network reconnaissance engine with
 
 ```bash
 ./target/release/cyberguard recon 127.0.0.1 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026 --ports 80,443,8080
+```
+
+### 5. Run Dynamic Application Security Testing (DAST)
+
+Audit active web applications and APIs for security misconfigurations, sensitive endpoint exposures, and injection reflection with atomic IP-pinned redirect protection:
+
+```bash
+./target/release/cyberguard dast http://127.0.0.1:8080 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026
 ```
 
 ---

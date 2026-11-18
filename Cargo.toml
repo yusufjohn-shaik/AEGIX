@@ -8,11 +8,12 @@ members = [
     "crates/cyberguard-secret",
     "crates/cyberguard-container",
     "crates/cyberguard-net",
+    "crates/cyberguard-dast",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 authors = ["Shaik Yusuf John <yusufjohn252007@gmail.com>"]
 license = "Apache-2.0"
@@ -67,9 +68,12 @@ cyberguard-sca = { path = "crates/cyberguard-sca" }
 cyberguard-secret = { path = "crates/cyberguard-secret" }
 cyberguard-container = { path = "crates/cyberguard-container" }
 cyberguard-net = { path = "crates/cyberguard-net" }
+cyberguard-dast = { path = "crates/cyberguard-dast" }
 
 # SAST Engine dependencies
 regex = "1.11"
 walkdir = "2.5"
 async-trait = "0.1"
 flate2 = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "deflate"] }
+url = { version = "2.5", features = ["serde"] }

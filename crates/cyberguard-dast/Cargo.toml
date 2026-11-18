@@ -1,0 +1,33 @@
+[package]
+name = "cyberguard-dast"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+description = "Dynamic Application Security Testing (DAST) Engine for CyberGuard platform"
+keywords = ["security", "dast", "vulnerability", "scanner", "web"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-net = { workspace = true }
+cyberguard-proc = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

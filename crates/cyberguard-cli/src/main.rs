@@ -2,6 +2,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog};
+use cyberguard_dast::{DastEngine, DastScanner, DastTarget, FindingSeverity};
 use cyberguard_net::{
     verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
 };
@@ -12,6 +13,7 @@ use cyberguard_secret::{SecretEngine, SecretScanner};
 use std::path::{Path, PathBuf};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
+use url::Url;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -47,6 +49,9 @@ pub enum Commands {
 
     /// Perform network reconnaissance against an authorized target with Scope Gate enforcement
     Recon(ReconArgs),
+
+    /// Perform dynamic application security testing (DAST) with Scope Gate enforcement
+    Dast(DastArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -128,6 +133,48 @@ pub struct ReconArgs {
     /// Supervise host-installed Nmap for scanning
     #[arg(long)]
     pub nmap: bool,
+
+    /// Output report format
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct DastArgs {
+    /// Target base URL to scan (e.g. http://127.0.0.1:8080)
+    pub target: String,
+
+    /// Path to .security-scope.yaml file
+    #[arg(long)]
+    pub scope: Option<PathBuf>,
+
+    /// Cryptographic HMAC-SHA256 scope validation key
+    #[arg(long, env = "CYBERGUARD_SCOPE_KEY")]
+    pub scope_key: Option<String>,
+
+    /// Maximum requests per second (rate limit)
+    #[arg(long, default_value_t = 25)]
+    pub max_rps: u32,
+
+    /// Maximum concurrent HTTP probes
+    #[arg(long, default_value_t = 10)]
+    pub concurrency: usize,
+
+    /// Cumulative HTTP transaction timeout in milliseconds
+    #[arg(long, default_value_t = 5000)]
+    pub timeout: u64,
+
+    /// Allow self-signed or invalid TLS certificates (dev/test only)
+    #[arg(long)]
+    pub insecure: bool,
+
+    /// Run external supervised Nuclei scanner
+    #[arg(long)]
+    pub nuclei: bool,
+
+    /// Custom request header in 'Key: Value' format (can be specified multiple times)
+    #[arg(long = "header", value_name = "HEADER")]
+    pub headers: Vec<String>,
 
     /// Output report format
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
@@ -609,6 +656,116 @@ async fn main() -> anyhow::Result<()> {
                                     port_proto, f.status, f.service, banner
                                 );
                             }
+                        }
+                    }
+                    println!("{:-<80}", "");
+                }
+            }
+        }
+        Some(Commands::Dast(args)) => {
+            let target_url = Url::parse(&args.target)
+                .map_err(|e| anyhow::anyhow!("Invalid target URL '{}': {}", args.target, e))?;
+
+            let host = target_url
+                .host_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing host in target URL '{}'", args.target))?;
+
+            let gate = if let Some(ref scope_path) = args.scope {
+                if !scope_path.exists() {
+                    anyhow::bail!(
+                        "Scope file not found at '{}'. Dynamic scanning strictly requires authorization via .security-scope.yaml.",
+                        scope_path.display()
+                    );
+                }
+                let g = ScopeGate::from_file(scope_path)?;
+                if let Some(ref key) = args.scope_key {
+                    verify_scope_hmac(&g.scope, key.as_bytes())?;
+                }
+                g
+            } else {
+                let is_ip = host.parse::<std::net::IpAddr>().is_ok();
+                let ephemeral_scope = cyberguard_net::models::SecurityScope {
+                    engagement_id: "ephemeral-dast-scan".to_string(),
+                    valid_from: None,
+                    valid_until: None,
+                    authorized_cidrs: if is_ip {
+                        if host.contains(':') {
+                            vec![format!("{}/128", host)]
+                        } else {
+                            vec![format!("{}/32", host)]
+                        }
+                    } else {
+                        vec![]
+                    },
+                    excluded_cidrs: vec![],
+                    authorized_domains: if !is_ip {
+                        vec![host.to_string()]
+                    } else {
+                        vec![]
+                    },
+                    authorized_ports: vec![],
+                    signature: None,
+                };
+                ScopeGate::new(ephemeral_scope)
+            };
+
+            let mut dast_target = DastTarget::new(target_url.clone()).with_insecure(args.insecure);
+            for h in &args.headers {
+                if let Some((k, v)) = h.split_once(':') {
+                    dast_target = dast_target.with_header(k.trim(), v.trim());
+                }
+            }
+
+            let engine = DastEngine::new()
+                .with_concurrency(args.concurrency)
+                .with_timeout_ms(args.timeout)
+                .with_max_rps(args.max_rps)
+                .with_nuclei(args.nuclei);
+
+            let report = engine.scan(&dast_target, &gate).await?;
+
+            match args.format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                OutputFormat::Sarif => {
+                    println!("{}", serde_json::to_string_pretty(&report.sarif_log)?);
+                }
+                OutputFormat::Terminal => {
+                    println!("🛡️  CyberGuard DAST Engine v{}", env!("CARGO_PKG_VERSION"));
+                    println!("Target: {}", report.target);
+                    println!(
+                        "Probed Endpoints / Checks: {} | Discovered Vulnerabilities: {}",
+                        report.tested_endpoints_count,
+                        report.findings.len()
+                    );
+                    println!("{:-<80}", "");
+
+                    if report.findings.is_empty() {
+                        println!("✅ No dynamic security vulnerabilities or misconfigurations discovered.");
+                    } else {
+                        for f in &report.findings {
+                            let (badge, color) = match f.severity {
+                                FindingSeverity::Critical | FindingSeverity::High => {
+                                    ("🔴 ERROR", "High/Critical")
+                                }
+                                FindingSeverity::Medium => ("🟡 WARN ", "Medium"),
+                                FindingSeverity::Low => ("🔵 NOTE ", "Low"),
+                                FindingSeverity::Info => ("ℹ️  INFO ", "Info"),
+                            };
+
+                            println!(
+                                "{} [{}] {}{}",
+                                badge,
+                                f.id,
+                                report.target.trim_end_matches('/'),
+                                f.endpoint
+                            );
+                            println!("   └── Title: {}", f.title);
+                            println!("   └── Severity: {}", color);
+                            println!("   └── Evidence: {}", f.evidence);
+                            println!("   └── Remediation: {}", f.remediation);
+                            println!();
                         }
                     }
                     println!("{:-<80}", "");
