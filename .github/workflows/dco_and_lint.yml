@@ -61,10 +61,19 @@ jobs:
           components: clippy, rustfmt
 
       - name: Verify Code Formatting
-        run: cargo fmt --check
+        run: cargo fmt --all -- --check
 
       - name: Run Clippy Linter
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
+
+      - name: Build Aegix Release Binary
+        run: cargo build --release -p cyberguard-cli
+
+      - name: Dogfooding Self-Scan (Aegix SAST on Workspace)
+        run: ./target/release/aegix scan . --format terminal
+
+      - name: Verify SARIF Telemetry Generation
+        run: ./target/release/aegix scan tests/fixtures/vulnerable-app --format sarif > sarif-report.json

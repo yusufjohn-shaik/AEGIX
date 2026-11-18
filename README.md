@@ -1,7 +1,7 @@
 <div align="center">
 
-# 🛡️ CYBER-GUARD
-### High-Performance Vulnerability Intelligence & Autonomous Remediation Platform
+# 🛡️ Aegix
+### High-Performance Vulnerability Intelligence & Autonomous Security Platform
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Rust Version](https://img.shields.io/badge/Rust-1.85%2B-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
@@ -12,13 +12,14 @@
 [![DCO](https://img.shields.io/badge/DCO-Signed--off--by-green.svg?style=flat-square)](CONTRIBUTING.md)
 
 <p align="center">
-  <b>100% Pure Native Rust • Zero External Runtime Dependencies • ReDoS-Immune Linear Scanning • OASIS SARIF v2.1.0 Engine</b>
+  <b>100% Pure Native Rust • Zero Runtime Dependencies • Linear-Time DFA Scanning • OASIS SARIF v2.1.0 Engine</b>
 </p>
 
 [Quickstart](#-quickstart) •
 [Capability Matrix](#-capability-status-matrix) •
 [Architecture](#-system-architecture) •
-[Contributing](#-join-the-community)
+[Threat Model](SECURITY_MODEL.md) •
+[Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -26,60 +27,35 @@
 
 ## 📊 Capability Status Matrix
 
-To maintain transparent, uncompromising security credibility, here is what is live and verified today versus what is actively being built on the roadmap:
+To maintain transparent, verifiable engineering credibility, here is what is live and verified with passing automated test suites versus what is actively being built on the roadmap:
 
 | Capability | Module | Status | Deliverables & Interfaces |
 | :--- | :--- | :---: | :--- |
 | **Legal & Safe Harbor** | Module 01 | **LIVE ✅** | Apache 2.0, Statutory Safe Harbor, DCO Gate, OpenSSF Scorecard workflow |
-| **CLI & Process Supervisor** | Module 02 | **LIVE ✅** | `cyberguard-cli`, POSIX process group sandboxing, 10 MB buffer bounds, Figment config |
-| **Universal Security Bus** | Module 03 | **LIVE ✅** | `cyberguard-core`, OASIS SARIF v2.1.0, OCSF v1.3.0, BLAKE3 deterministic fingerprints |
-| **In-Process SAST Engine** | Module 04 | **LIVE ✅** | `cyberguard-sast`, linear $O(n)$ regex scanner (SQLi, CMDi, Secrets, Path, Crypto), walker |
-| **SCA & Supply Chain** | Module 05 | **LIVE ✅** | `cyberguard-sca`, Cargo/npm lockfile parsing, CycloneDX v1.5 & SPDX v2.3 SBOM, OSV advisory engine |
-| **Secret Detection Engine** | Module 06 | **LIVE ✅** | `cyberguard-secret`, Shannon entropy analysis, multi-provider credentials detection (AWS, GitHub, Stripe, OpenAI, Slack, Keys), surgical masking |
-| **Container & OCI Security** | Module 07 | **LIVE ✅** | `cyberguard-container`, static Dockerfile linter (8 rules), daemonless OCI/tar layer scanner, Alpine/Debian package discovery |
-| **Network Recon & Scope Gate** | Module 08 | **LIVE ✅** | `cyberguard-net`, cryptographic Proof-of-Authorization, DNS TOCTOU-resistant PinnedTarget, async TCP scanner, safe banner grabber, supervised Nmap adapter |
-| **DAST & Dynamic Security Engine** | Module 09 | **LIVE ✅** | `cyberguard-dast`, atomic IP-pinned redirect validation (SSRF/metadata immune), SPA soft-404 content signatures, security headers, context-aware reflection, declarative rules, supervised Nuclei |
+| **CLI & Process Supervisor** | Module 02 | **LIVE ✅** | `aegix-cli`, POSIX process group sandboxing, 10 MB buffer bounds, Figment config |
+| **Universal Security Bus** | Module 03 | **LIVE ✅** | `aegix-core`, OASIS SARIF v2.1.0, OCSF v1.3.0, BLAKE3 deterministic fingerprints |
+| **In-Process SAST Engine** | Module 04 | **LIVE ✅** | `aegix-sast`, linear $O(n)$ regex scanner (SQLi, CMDi, Secrets, Path, Crypto), walker |
+| **SCA & Supply Chain** | Module 05 | **LIVE ✅** | `aegix-sca`, Cargo/npm lockfile parsing, CycloneDX v1.5 & SPDX v2.3 SBOM, OSV advisory engine |
+| **Secret Detection Engine** | Module 06 | **LIVE ✅** | `aegix-secret`, Shannon entropy analysis, multi-provider credentials detection (AWS, GitHub, Stripe, OpenAI, Slack, Keys), surgical masking |
+| **Container & OCI Security** | Module 07 | **LIVE ✅** | `aegix-container`, static Dockerfile linter (8 rules), daemonless OCI/tar layer scanner, Alpine/Debian package discovery |
+| **Network Recon & Scope Gate** | Module 08 | **LIVE ✅** | `aegix-net`, cryptographic Proof-of-Authorization, DNS TOCTOU-resistant PinnedTarget, async TCP scanner, safe banner grabber, supervised Nmap adapter |
+| **DAST & Dynamic Security Engine** | Module 09 | **LIVE ✅** | `aegix-dast`, atomic IP-pinned redirect validation (SSRF/metadata immune), SPA soft-404 content signatures, security headers, context-aware reflection, declarative rules, supervised Nuclei |
+| **API Security & Spec Fuzzing** | Module 10 | **IN PROGRESS 🔨** | OpenAPI 3.0 / Swagger schema contract validation and endpoint fuzzing |
 | **MCP AI Agent Server** | Module 16 | **PLANNED 📋** | JSON-RPC Model Context Protocol server for Antigravity, Cursor, and Claude Code |
 | **Attack Path Graph (DAG)** | Module 17 | **PLANNED 📋** | In-memory directed acyclic graph mapping multi-hop exploit chains |
 | **AST Auto-Remediation** | Module 19 | **PLANNED 📋** | Tree-sitter AST syntax patcher and automated regression test generator |
 
 ---
 
-## 🌟 The Vision: Security Built for the Modern Era
+## 🌟 Engineering Design Principles
 
-Most legacy security scanners were built for the software architectures of a decade ago. Stacking disconnected tools produces shallow results: thousands of unprioritized alerts, 70%+ false positive noise, and zero understanding of how a vulnerability in code actually interacts with cloud permissions, exposed routes, or API dataflows.
+Aegix is a vulnerability intelligence and autonomous remediation platform written in pure, safe Rust:
 
-**CyberGuard is a purpose-built vulnerability intelligence platform written in pure Rust:**
-- **Zero Runtime Dependencies:** No Python, JVM, or Node.js required. Ships as a single static, sandboxed binary.
-- **Linear-Time SAST ($O(n)$):** Native regular expression automata mathematically immune to ReDoS backtracking attacks.
-- **Universal SARIF v2.1.0 Data Bus:** Deterministic BLAKE3 partial fingerprints (`logicalLocationTokenHash/v1`) prevent duplicate alerts across commits and tooling runs.
-- **AI Agent Integration:** Designed to plug directly into AI coding agents via the Model Context Protocol (MCP).
-
----
-
-## ⚡ Core Capabilities
-
-### 1. 🎯 Deep Native Vulnerability Discovery
-CyberGuard combines native AST parsing, semantic taint tracking, and modern API contract fuzzing to detect flaws that traditional regex and shallow scanners miss:
-- **OWASP API Top 10:** Broken Object Level Authorization (BOLA), Broken Function Level Authorization (BFLA), Mass Assignment, and Unrestricted Resource Consumption.
-- **OWASP Top 10 for LLMs / AI Apps:** Prompt Injection, Insecure Output Handling, Training Data Poisoning, Sensitive Info Disclosure, and Vector DB access control flaws.
-- **Cross-Layer Vulnerability Tracing:** Correlating an exposed API route in source code with an overly permissive AWS IAM role or Kubernetes cluster binding.
-
-### 2. 🧠 Tri-Factor Noise Elimination (`CVSS × EPSS × Reachability`)
-Legacy scanners overwhelm engineers by marking thousands of CVEs as "Critical" purely based on theoretical CVSS scores. CyberGuard calculates **real-world risk**:
-$$\text{Risk Score} = \text{CVSS (Severity)} \times \text{EPSS (Active Exploitation Probability)} \times \text{Reachability Index}$$
-If a vulnerable function is never invoked by your application's entry points, its priority is automatically downgraded—saving hundreds of wasted engineering hours.
-
-### 3. 🕸️ In-Memory Attack Path Graph (DAG)
-Rather than showing 500 flat alerts, CyberGuard builds a unified Directed Acyclic Graph connecting:
-$$\text{External Entrypoint} \longrightarrow \text{API Route} \longrightarrow \text{Vulnerable Code / Dependency} \longrightarrow \text{Leaked Credential} \longrightarrow \text{Cloud Privilege Escalation}$$
-Security teams see the **exact kill-chain** an attacker would follow to compromise production assets.
-
-### 4. 🛠️ Autonomous AST Remediation Engine
-CyberGuard writes production-ready code fixes:
-- Parses the target file's Abstract Syntax Tree (AST) using Tree-sitter.
-- Applies surgical, idiomatic patches (parameterized queries, input sanitization, safe deserializers, updated imports).
-- Auto-generates unit tests to verify the vulnerability is eradicated without breaking business logic.
+1. **Zero Runtime Dependencies:** No Python, JVM, or Node.js runtime required. Compiles to a single static, sandboxed binary.
+2. **Linear-Time DFA Matching:** Uses non-backtracking regular expression automata (`regex` crate) with explicit DFA size limits to avoid ReDoS worst-case behavior.
+3. **Fail-Closed Scope Gate:** Network and dynamic scanning engines strictly require pre-flight cryptographic Proof-of-Authorization (`.security-scope.yaml`) and enforce atomic IP pinning on every redirect hop to defeat DNS rebinding TOCTOU attacks.
+4. **Universal SARIF v2.1.0 Data Bus:** Emits standard OASIS SARIF telemetry with deterministic BLAKE3 partial fingerprints (`logicalLocationTokenHash/v1`) to prevent duplicate alerts across commits and CI runs.
+5. **AI Agent Native:** Built to expose tools to modern AI coding assistants via the Model Context Protocol (MCP).
 
 ---
 
@@ -87,8 +63,8 @@ CyberGuard writes production-ready code fixes:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        CYBERGUARD CLI & TUI INTERFACE                  │
-│   cyberguard [scan | audit | recon | dast | trace | fix | mcp]         │
+│                          AEGIX CLI & TUI INTERFACE                     │
+│      aegix [scan | audit | recon | dast | trace | fix | mcp]           │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     ▼
@@ -96,7 +72,7 @@ CyberGuard writes production-ready code fixes:
 │             INTELLIGENCE ENGINE & ATTACK SURFACE DISCOVERY             │
 │   - Application Architecture & Endpoint Detector                       │
 │   - Semantic Taint Analyzer (Sources ➔ Sanitizers ➔ Sinks)             │
-│   - Modern API & LLM Security Validator                                │
+│   - Modern API & Dynamic Security Validator                            │
 │   - Universal SARIF v2.1.0 & OCSF Security Bus                         │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
@@ -104,8 +80,8 @@ CyberGuard writes production-ready code fixes:
 ┌────────────────────────────────────────────────────────────────────────┐
 │            CORRELATION ENGINE & ATTACK PATH GRAPH (DAG)                │
 │   - In-Memory Graph Engine (Code ➔ Cloud ➔ Network ➔ Identity)         │
-│   - Semantic Reachability Checker (Call Graph Call-Path Verifier)      │
-│   - Tri-Factor Prioritizer: CVSS × EPSS (Live Threat Intel) × Reach    │
+│   - Reachability Checker (Call Graph Call-Path Verifier)               │
+│   - Tri-Factor Prioritizer: CVSS × EPSS (Threat Intel) × Reachability │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ Prioritized, Verified Exploit Paths
                                     ▼
@@ -119,41 +95,27 @@ CyberGuard writes production-ready code fixes:
 
 ---
 
-## 🛡️ Built for Modern Stacks
-
-CyberGuard is designed from the ground up for modern application engineering:
-
-| Layer | Modern Target Stack | What CyberGuard Discovers |
-| :--- | :--- | :--- |
-| **Modern Frameworks** | Next.js, FastAPI, Go Fiber, Spring Boot 3, Rust Axum | Server-Side Request Forgery (SSRF), Prototype Pollution, Tainted Data Flows, CORS Misconfigurations |
-| **APIs & Microservices** | REST, GraphQL, gRPC, OpenAPI 3.0 | BOLA / IDOR, Broken Function Level Auth (BFLA), Mass Assignment, GraphQL Depth Limits |
-| **AI / GenAI Stacks** | LangChain, LlamaIndex, OpenAI SDK, Vector DBs | Prompt Injection, Insecure Output Handling, Excessive Data Exposure in RAG Pipelines |
-| **Supply Chain & SBOM** | npm, PyPI, Go modules, Cargo, Maven | Malicious packages, dependency confusion, typosquatting, reachable CVEs |
-| **Cloud-Native & IaC** | Kubernetes, Terraform, Helm, Docker, AWS/GCP | IAM privilege escalation, privilege containers, ingress exposure, hardcoded secrets |
-
----
-
 ## 🚀 Quickstart
 
 ### 1. Build from Source (Pure Rust)
 
 ```bash
-git clone https://github.com/yusufjohn-shaik/CYBER-GUARD.git
-cd CYBER-GUARD
+git clone https://github.com/yusufjohn-shaik/CYBER-GUARD.git aegix
+cd aegix
 cargo build --release
 ```
 
 ### 2. Run the SAST Scanner on the Demo Fixture
 
-CyberGuard ships with an intentionally vulnerable fixture application so you can test detection immediately:
+Aegix includes a test fixture application so you can test vulnerability discovery immediately:
 
 ```bash
-./target/release/cyberguard scan tests/fixtures/vulnerable-app
+./target/release/aegix scan tests/fixtures/vulnerable-app
 ```
 
-**Real Terminal Output:**
+**Terminal Output:**
 ```text
-🛡️  CyberGuard SAST Engine v0.4.0
+🛡️  Aegix SAST Engine v0.9.0
 Target: tests/fixtures/vulnerable-app
 Workspace: .
 --------------------------------------------------------------------------------
@@ -182,47 +144,46 @@ Found 5 vulnerability alert(s):
 Generate standard SARIF telemetry compatible with GitHub Code Scanning, DefectDojo, and VS Code SARIF viewers:
 
 ```bash
-./target/release/cyberguard scan tests/fixtures/vulnerable-app --format sarif | jq .
+./target/release/aegix scan tests/fixtures/vulnerable-app --format sarif | jq .
 ```
 
-### 4. Run Network Reconnaissance with Cryptographic Scope Gate
+### 4. Run Network Reconnaissance with Scope Gate Enforcement
 
-CyberGuard includes an asynchronous pure-Rust network reconnaissance engine with mandatory Scope Gate enforcement (`.security-scope.yaml`), DNS rebinding TOCTOU protection, and bogon/metadata blacklists:
+Aegix includes an asynchronous network reconnaissance engine with mandatory Scope Gate enforcement (`.security-scope.yaml`), DNS TOCTOU protection, and bogon/metadata address blacklists:
 
 ```bash
-./target/release/cyberguard recon 127.0.0.1 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026 --ports 80,443,8080
+./target/release/aegix recon 127.0.0.1 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026 --ports 80,443,8080
 ```
 
 ### 5. Run Dynamic Application Security Testing (DAST)
 
-Audit active web applications and APIs for security misconfigurations, sensitive endpoint exposures, and injection reflection with atomic IP-pinned redirect protection:
+Audit active web applications and APIs for security misconfigurations, sensitive endpoint exposures, and injection reflections with atomic IP-pinned redirect protection:
 
 ```bash
-./target/release/cyberguard dast http://127.0.0.1:8080 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026
+./target/release/aegix dast http://127.0.0.1:8080 --scope tests/fixtures/network-scope/.security-scope.yaml --scope-key fixture-secret-key-2026
 ```
 
 ---
 
-## 🤝 Join the Community & Elevate Open-Source Security
+## 🤝 Community & Contributing
 
-CyberGuard is being built in the open to democratize enterprise-grade vulnerability intelligence for developers and security teams globally.
+Aegix is an open-source security engineering platform developed in the open.
 
-- ⭐ **Star the Repository:** Help us build momentum and grow into the #1 open-source security project.
-- 💡 **Contribute Ideas & Code:** Check out open issues labeled `good first issue` or start a discussion.
-- 🛡️ **Clean-Room & Quality Standards:** Every contribution must be signed with a **Developer Certificate of Origin** (`git commit -s`) and include automated unit tests (>80% coverage).
+- 💡 **Contribute:** See open issues labeled `good first issue` or propose an architectural enhancement.
+- 🛡️ **Quality Standards:** Every contribution must be signed with a **Developer Certificate of Origin** (`git commit -s`) and include automated test verification.
 - 📜 **Code of Conduct:** Read our [Contributor Covenant](CODE_OF_CONDUCT.md) and [Contributing Guidelines](CONTRIBUTING.md).
 
 ---
 
 ## ⚖️ Legal Safe Harbor & Ethical Research
 
-CyberGuard is built **strictly for defensive security auditing, authorized vulnerability research, and continuous remediation**.
+Aegix is built **strictly for defensive security auditing, authorized vulnerability research, and continuous remediation**.
 
 - Review our [Legal Safe Harbor Agreement](LEGAL_SAFE_HARBOR.md) covering safe-harbor protections under the US CFAA, UK Computer Misuse Act, and Indian IT Act.
-- Vulnerabilities within CyberGuard should be reported privately via [GitHub Security Advisories](https://github.com/yusufjohn-shaik/CYBER-GUARD/security/advisories) as detailed in our [Security Policy](SECURITY.md).
+- Vulnerabilities within Aegix should be reported privately via [GitHub Security Advisories](https://github.com/yusufjohn-shaik/CYBER-GUARD/security/advisories) as detailed in our [Security Policy](SECURITY.md).
 
 ---
 
 ## 📄 License
 
-CyberGuard is open-source software licensed under the permissive **[Apache License, Version 2.0](LICENSE)**.
+Aegix is open-source software licensed under the **[Apache License, Version 2.0](LICENSE)**.

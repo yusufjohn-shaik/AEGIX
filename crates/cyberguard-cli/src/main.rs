@@ -17,10 +17,10 @@ use url::Url;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "cyberguard",
+    name = "aegix",
     version = env!("CARGO_PKG_VERSION"),
     about = "Autonomous Vulnerability Intelligence & Remediation Platform",
-    long_about = "CyberGuard is an uncompromising, next-generation open-source vulnerability intelligence platform\nbuilt in Rust. It discovers real flaws in modern software, correlates attack path graphs (DAG),\nand autonomously synthesizes AST-verified code fixes."
+    long_about = "Aegix is a high-performance open-source vulnerability intelligence platform\nbuilt in pure Rust. It discovers flaws across modern stacks, correlates attack path graphs (DAG),\nand autonomously synthesizes AST-verified code fixes."
 )]
 pub struct Cli {
     /// Custom configuration file path (defaults to cyberguard.yaml)

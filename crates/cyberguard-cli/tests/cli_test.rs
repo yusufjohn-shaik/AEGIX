@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 // We will test Clap derive command parsing directly
 #[derive(Parser, Debug)]
-#[command(name = "cyberguard", version = env!("CARGO_PKG_VERSION"))]
+#[command(name = "aegix", version = env!("CARGO_PKG_VERSION"))]
 struct Cli {
     #[arg(global = true, short, long)]
     config: Option<PathBuf>,
@@ -44,7 +44,7 @@ enum Commands {
 
 #[test]
 fn test_cli_scan_subcommand_defaults() {
-    let args = Cli::parse_from(["cyberguard", "scan"]);
+    let args = Cli::parse_from(["aegix", "scan"]);
     assert_eq!(
         args.command,
         Some(Commands::Scan {
@@ -56,7 +56,7 @@ fn test_cli_scan_subcommand_defaults() {
 
 #[test]
 fn test_cli_scan_with_custom_path_and_format() {
-    let args = Cli::parse_from(["cyberguard", "scan", "/src/app", "--format", "sarif"]);
+    let args = Cli::parse_from(["aegix", "scan", "/src/app", "--format", "sarif"]);
     assert_eq!(
         args.command,
         Some(Commands::Scan {
@@ -68,7 +68,7 @@ fn test_cli_scan_with_custom_path_and_format() {
 
 #[test]
 fn test_cli_fix_subcommand_auto_flag() {
-    let args = Cli::parse_from(["cyberguard", "fix", "--auto", "src/"]);
+    let args = Cli::parse_from(["aegix", "fix", "--auto", "src/"]);
     assert_eq!(
         args.command,
         Some(Commands::Fix {
@@ -80,6 +80,6 @@ fn test_cli_fix_subcommand_auto_flag() {
 
 #[test]
 fn test_cli_mcp_subcommand() {
-    let args = Cli::parse_from(["cyberguard", "mcp"]);
+    let args = Cli::parse_from(["aegix", "mcp"]);
     assert_eq!(args.command, Some(Commands::Mcp { stdio: true }));
 }

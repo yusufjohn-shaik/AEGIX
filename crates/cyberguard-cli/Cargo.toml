@@ -7,7 +7,7 @@ license.workspace = true
 description = "High-performance CLI entrypoint and command dispatcher for CyberGuard"
 
 [[bin]]
-name = "cyberguard"
+name = "aegix"
 path = "src/main.rs"
 
 [dependencies]
