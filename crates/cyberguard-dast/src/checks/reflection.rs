@@ -29,15 +29,43 @@ pub async fn check_active_reflection(
         }
     }
 
-    let nonce = "cg987a1";
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let nonce = format!("cg{:08x}", nanos);
     let probe_payload = format!("{}<script>alert(1)</script>", nonce);
 
+    let existing_pairs: Vec<(String, String)> = target_url
+        .query_pairs()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
     for param in params_to_test {
-        let mut probe_url = target_url.clone();
-        probe_url
-            .query_pairs_mut()
-            .clear()
-            .append_pair(&param, &probe_payload);
+        let probe_url = {
+            let mut u = target_url.clone();
+            let mut query = u.query_pairs_mut();
+            query.clear();
+
+            if existing_pairs.is_empty() {
+                query.append_pair(&param, &probe_payload);
+            } else {
+                let mut found = false;
+                for (k, v) in &existing_pairs {
+                    if k == &param {
+                        query.append_pair(k, &probe_payload);
+                        found = true;
+                    } else {
+                        query.append_pair(k, v);
+                    }
+                }
+                if !found {
+                    query.append_pair(&param, &probe_payload);
+                }
+            }
+            drop(query);
+            u
+        };
 
         if let Ok((status, headers, body)) = client
             .send_request(Method::GET, &probe_url, None, scope)

@@ -699,6 +699,8 @@ async fn main() -> anyhow::Result<()> {
                         } else {
                             vec![format!("{}/32", host)]
                         }
+                    } else if host.eq_ignore_ascii_case("localhost") {
+                        vec!["127.0.0.1/32".to_string(), "::1/128".to_string()]
                     } else {
                         vec![]
                     },

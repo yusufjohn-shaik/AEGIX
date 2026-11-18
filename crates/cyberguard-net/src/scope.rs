@@ -152,12 +152,10 @@ impl ScopeGate {
         Ok(PinnedTarget::new(ip.to_string(), ip, port))
     }
 
-    /// Validate a target (hostname or IP string) and resolve to a TOCTOU-safe PinnedTarget.
-    ///
-    /// Every resolved `A` and `AAAA` record is checked. If *any* address is out of scope or
-    /// points to a bogon/cloud metadata service, the entire target is rejected immediately.
-    pub fn validate_target(&self, target: &str, port: u16) -> Result<PinnedTarget, NetError> {
-        let target = target.trim();
+    /// Validate a target (hostname or IP string) and port against scope rules without DNS resolution.
+    pub fn validate_host(&self, host: &str, port: u16) -> Result<(), NetError> {
+        let host = host.trim();
+        self.check_expiration()?;
 
         // 0. Fail-closed check
         if self.authorized_cidrs.is_empty() && self.scope.authorized_domains.is_empty() {
@@ -168,34 +166,56 @@ impl ScopeGate {
         }
 
         // Direct IP check
-        if let Ok(ip) = IpAddr::from_str(target) {
+        if let Ok(ip) = IpAddr::from_str(host) {
             if self.authorized_cidrs.is_empty() {
                 return Err(NetError::ScopeViolation(format!(
-                    "Target '{target}' is an IP address, but engagement '{}' authorizes only domain names ({:?}) without CIDR whitelisting.",
+                    "Target '{host}' is an IP address, but engagement '{}' authorizes only domain names ({:?}) without CIDR whitelisting.",
                     self.scope.engagement_id, self.scope.authorized_domains
                 )));
             }
-            return self.validate_ip(ip, port);
+            let _ = self.validate_ip(ip, port)?;
+            return Ok(());
         }
-
-        self.check_expiration()?;
 
         // Domain whitelist check
         if !self.scope.authorized_domains.is_empty() {
             let domain_authorized = self.scope.authorized_domains.iter().any(|d| {
                 if let Some(suffix) = d.strip_prefix("*.") {
-                    target.ends_with(suffix) || target == suffix
+                    host.ends_with(suffix) || host == suffix
                 } else {
-                    target.eq_ignore_ascii_case(d)
+                    host.eq_ignore_ascii_case(d)
                 }
             });
 
             if !domain_authorized {
                 return Err(NetError::ScopeViolation(format!(
-                    "Domain '{target}' is not in authorized_domains whitelist ({:?})",
+                    "Domain '{host}' is not in authorized_domains whitelist ({:?})",
                     self.scope.authorized_domains
                 )));
             }
+        }
+
+        // Authorized Ports Check
+        if !self.scope.authorized_ports.is_empty() && !self.scope.authorized_ports.contains(&port) {
+            return Err(NetError::ScopeViolation(format!(
+                "Port {port} is not permitted by authorized_ports whitelist ({:?})",
+                self.scope.authorized_ports
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Validate a target (hostname or IP string) and resolve to a TOCTOU-safe PinnedTarget.
+    ///
+    /// Every resolved `A` and `AAAA` record is checked. If *any* address is out of scope or
+    /// points to a bogon/cloud metadata service, the entire target is rejected immediately.
+    pub fn validate_target(&self, target: &str, port: u16) -> Result<PinnedTarget, NetError> {
+        let target = target.trim();
+        self.validate_host(target, port)?;
+
+        if let Ok(ip) = IpAddr::from_str(target) {
+            return self.validate_ip(ip, port);
         }
 
         // One-time DNS resolution with strict validation on every returned IP

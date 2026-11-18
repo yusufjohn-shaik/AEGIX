@@ -138,6 +138,14 @@ impl DastClient {
                 .port_or_known_default()
                 .ok_or_else(|| DastError::InvalidUrl("Missing port in URL".to_string()))?;
 
+            // Validate target host against ScopeGate (domain whitelist, direct IP rules, port, expiration)
+            scope.validate_host(host_str, port).map_err(|e| {
+                DastError::ScopeViolation(format!(
+                    "Host {} is not authorized by scope gate: {}",
+                    host_str, e
+                ))
+            })?;
+
             let addrs = tokio::net::lookup_host(format!("{}:{}", host_str, port))
                 .await
                 .map_err(|e| {

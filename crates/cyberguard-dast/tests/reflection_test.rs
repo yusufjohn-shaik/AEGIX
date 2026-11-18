@@ -20,8 +20,20 @@ async fn test_active_xss_reflection_unescaped_detection() {
                     let n = socket.read(&mut buf).await.unwrap_or(0);
                     let req = String::from_utf8_lossy(&buf[..n]);
 
-                    if req.contains("GET /search?q=") {
-                        let body = "<html><body><h1>Search Results for: cg987a1<script>alert(1)</script></h1></body></html>";
+                    if let Some(pos) = req.find("GET /search?") {
+                        let query_part = &req[pos + 12..];
+                        let query_str = query_part.split_whitespace().next().unwrap_or("");
+                        let mut reflected = String::new();
+                        for (k, v) in url::form_urlencoded::parse(query_str.as_bytes()) {
+                            if k == "q" {
+                                reflected = v.into_owned();
+                                break;
+                            }
+                        }
+                        let body = format!(
+                            "<html><body><h1>Search Results for: {}</h1></body></html>",
+                            reflected
+                        );
                         let response = format!(
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                             body.len(),
