@@ -5,6 +5,10 @@ cyberguard
 cyberguard-darwin-*
 cyberguard-linux-*
 cyberguard-windows-*.exe
+aegix
+aegix-darwin-*
+aegix-linux-*
+aegix-windows-*.exe
 
 # Rust build artifacts
 target/
@@ -42,10 +46,12 @@ sdist/
 .installed.cfg
 *.egg
 
-# CyberGuard local caches & scan outputs
+# Aegix & CyberGuard local caches & scan outputs
+.aegix/
 .cyberguard/
 *.sarif
 *.sarif.json
+*.aegix-baseline.json
 report_output/
 scan_results/
 proof_of_authorization.sig
