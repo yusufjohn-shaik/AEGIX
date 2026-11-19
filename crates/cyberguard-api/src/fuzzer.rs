@@ -176,7 +176,7 @@ async fn fuzz_operation(
     // Cap total probes per endpoint to 15 to stay safe and responsive
     let mut probe_count = 0;
     const MAX_PROBES_PER_ENDPOINT: usize = 15;
-    let placeholder_re = regex::Regex::new(r"\{[^}]+\}").unwrap();
+    let placeholder_re = regex::Regex::new(r"\{[^}]+\}").expect("Valid static regex for URL placeholders");
 
     for (mut_name, mut_val) in &mutations {
         if probe_count >= MAX_PROBES_PER_ENDPOINT {
