@@ -45,7 +45,7 @@ These items address core credibility, developer adoption primitives, parser robu
 
 ### Phase 1.4: Core Engine Upgrades (Modules 10–15)
 - [x] **Module 10: API Security & Spec Fuzzing (`cyberguard-api` / `aegix-api`):** OpenAPI 3.0 / 3.1 & Swagger 2.0 contract validator and autonomous contract boundary mutation fuzzing engine.
-- [ ] **Module 11: Cloud Security (`aegix-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
+- [x] **Module 11: Cloud Security (`aegix-cloud` / `cyberguard-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
 - [ ] **Module 12: IaC Security (`aegix-iac`):** Terraform, Kubernetes, Helm static security linters.
 - [ ] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline`):** GitHub Actions workflow auditor and SLSA provenance verifier.
 - [ ] **Module 14: Mobile Security (`aegix-mobile`):** Android APK / iOS IPA manifest and static security auditor.

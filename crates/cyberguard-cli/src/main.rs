@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cyberguard_api::{ApiConfig, ApiEngine, ApiScanner};
+use cyberguard_cloud::{CloudEngine, CloudScanner};
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog, SarifResult};
@@ -57,6 +58,9 @@ pub enum Commands {
 
     /// Audit and fuzz API contracts (OpenAPI 3.0/3.1, Swagger 2.0)
     Api(ApiArgs),
+
+    /// Audit multi-cloud infrastructure and IAM entitlements (CSPM & CIEM)
+    Cloud(CloudArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -250,6 +254,33 @@ pub struct ApiArgs {
     /// Output report format: terminal, sarif, json
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
     pub format: OutputFormat,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct CloudArgs {
+    /// Target cloud configuration file or directory to scan, or '-' for STDIN
+    #[arg(default_value = ".")]
+    pub target: PathBuf,
+
+    /// Optional cloud provider filter: aws, gcp, azure, auto
+    #[arg(long, default_value = "auto")]
+    pub provider: String,
+
+    /// Output report format: terminal, sarif, json
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+
+    /// Optional output file to write the audit results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
 }
 
 fn parse_ports_spec(spec: &str) -> anyhow::Result<Vec<u16>> {
@@ -957,6 +988,54 @@ async fn main() -> anyhow::Result<()> {
                     }
                     println!("{:-<80}", "");
                 }
+            }
+        }
+        Some(Commands::Cloud(args)) => {
+            let engine = CloudEngine::default();
+            let config = cyberguard_cloud::parser::CloudParser::parse_path(&args.target)?;
+            let report = engine.scan(&config).await?;
+
+            // Handle save baseline if requested
+            if let Some(ref save_path) = args.save_baseline {
+                let baseline = engine.generate_baseline(&report, &args.target);
+                baseline.save_to_path(save_path)?;
+                println!(
+                    "Saved {} findings to baseline snapshot '{}'",
+                    report.findings.len(),
+                    save_path.display()
+                );
+            }
+
+            // Load baseline for suppression if requested
+            let baseline_opt = if let Some(ref base_path) = args.baseline {
+                Some(cyberguard_core::baseline::AegixBaseline::load_from_path(
+                    base_path,
+                )?)
+            } else {
+                None
+            };
+
+            let output_str = match args.format {
+                OutputFormat::Json => serde_json::to_string_pretty(&report)?,
+                OutputFormat::Sarif => {
+                    let sarif = engine.to_sarif(&report, &args.target, baseline_opt.as_ref());
+                    serde_json::to_string_pretty(&sarif)?
+                }
+                OutputFormat::Terminal => {
+                    if let Some(ref base) = baseline_opt {
+                        let filtered_report = CloudEngine::filter_baseline(&report, base);
+                        engine.format_terminal(&filtered_report)
+                    } else {
+                        engine.format_terminal(&report)
+                    }
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Audit report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
             }
         }
         Some(Commands::Trace(args)) => {

@@ -354,6 +354,7 @@ dependencies = [
  "anyhow",
  "clap",
  "cyberguard-api",
+ "cyberguard-cloud",
  "cyberguard-container",
  "cyberguard-core",
  "cyberguard-dast",
@@ -368,6 +369,23 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "cyberguard-cloud"
+version = "0.9.0"
+dependencies = [
+ "async-trait",
+ "cyberguard-core",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "walkdir",
 ]
 
 [[package]]

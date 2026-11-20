@@ -1,0 +1,39 @@
+{
+  "GroupId": "sg-0123456789abcdef0",
+  "GroupName": "open-management-sg",
+  "IpPermissions": [
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 22,
+      "ToPort": 22,
+      "IpRanges": [
+        {
+          "CidrIp": "0.0.0.0/0",
+          "Description": "Public SSH"
+        }
+      ]
+    },
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 3389,
+      "ToPort": 3389,
+      "Ipv6Ranges": [
+        {
+          "CidrIpv6": "::/0",
+          "Description": "Public RDP IPv6"
+        }
+      ]
+    },
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 5432,
+      "ToPort": 5432,
+      "IpRanges": [
+        {
+          "CidrIp": "0.0.0.0/0",
+          "Description": "Public PostgreSQL"
+        }
+      ]
+    }
+  ]
+}

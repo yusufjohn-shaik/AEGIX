@@ -1,0 +1,29 @@
+{
+  "name": "vulnerable-perimeter-nsg",
+  "id": "/subscriptions/sub-123/resourceGroups/rg-net/providers/Microsoft.Network/networkSecurityGroups/vulnerable-perimeter-nsg",
+  "securityRules": [
+    {
+      "name": "Allow-Internet-SSH",
+      "properties": {
+        "protocol": "Tcp",
+        "sourceAddressPrefix": "Internet",
+        "destinationPortRange": "22",
+        "access": "Allow",
+        "direction": "Inbound"
+      }
+    },
+    {
+      "name": "Allow-Any-RDP",
+      "properties": {
+        "protocol": "Tcp",
+        "sourceAddressPrefix": "*",
+        "destinationPortRanges": [
+          "3389",
+          "5432"
+        ],
+        "access": "Allow",
+        "direction": "Inbound"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowFullAdminWildcard",
+      "Effect": "Allow",
+      "Action": "*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DangerousPrivilegeEscalationPassRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole",
+        "ec2:RunInstances"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DangerousPrivilegeEscalationAccessKey",
+      "Effect": "Allow",
+      "Action": "iam:CreateAccessKey",
+      "Resource": "*"
+    }
+  ]
+}
