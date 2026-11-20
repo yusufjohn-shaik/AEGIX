@@ -8,6 +8,7 @@ use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog, SarifResult};
 use cyberguard_core::AegixBaseline;
 use cyberguard_dast::{DastEngine, DastScanner, DastTarget, FindingSeverity};
+use cyberguard_iac::{IacEngine, IacScanner};
 use cyberguard_net::{
     verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
 };
@@ -63,6 +64,9 @@ pub enum Commands {
 
     /// Audit multi-cloud infrastructure and IAM entitlements (CSPM & CIEM)
     Cloud(CloudArgs),
+
+    /// Audit Infrastructure as Code (Kubernetes YAML/JSON, Helm, Terraform)
+    Iac(IacArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -267,6 +271,29 @@ pub struct CloudArgs {
     /// Optional cloud provider filter: aws, gcp, azure, auto
     #[arg(long, default_value = "auto")]
     pub provider: String,
+
+    /// Output report format: terminal, sarif, json
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+
+    /// Optional output file to write the audit results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct IacArgs {
+    /// Target IaC file, directory to scan, or '-' for STDIN
+    #[arg(default_value = ".")]
+    pub target: PathBuf,
 
     /// Output report format: terminal, sarif, json
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
@@ -1026,6 +1053,60 @@ async fn main() -> anyhow::Result<()> {
                 OutputFormat::Terminal => {
                     if let Some(ref base) = baseline_opt {
                         let filtered_report = CloudEngine::filter_baseline(&report, base);
+                        engine.format_terminal(&filtered_report)
+                    } else {
+                        engine.format_terminal(&report)
+                    }
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Audit report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+        }
+        Some(Commands::Iac(args)) => {
+            let engine = IacEngine::new();
+            let report = if args.target.to_string_lossy() == "-" {
+                let mut stdin = std::io::stdin();
+                engine
+                    .scan_reader(&mut stdin, &PathBuf::from("stdin.yaml"))
+                    .await?
+            } else {
+                engine.scan_file(&args.target).await?
+            };
+
+            // Handle save baseline if requested
+            if let Some(ref save_path) = args.save_baseline {
+                let baseline = engine.generate_baseline(&report, &args.target);
+                baseline.save_to_path(save_path)?;
+                println!(
+                    "Saved {} findings to baseline snapshot '{}'",
+                    report.findings.len(),
+                    save_path.display()
+                );
+            }
+
+            // Load baseline for suppression if requested
+            let baseline_opt = if let Some(ref base_path) = args.baseline {
+                Some(cyberguard_core::baseline::AegixBaseline::load_from_path(
+                    base_path,
+                )?)
+            } else {
+                None
+            };
+
+            let output_str = match args.format {
+                OutputFormat::Json => serde_json::to_string_pretty(&report)?,
+                OutputFormat::Sarif => {
+                    let sarif = engine.to_sarif(&report, &args.target, baseline_opt.as_ref());
+                    serde_json::to_string_pretty(&sarif)?
+                }
+                OutputFormat::Terminal => {
+                    if let Some(ref base) = baseline_opt {
+                        let filtered_report = IacEngine::filter_baseline(&report, base);
                         engine.format_terminal(&filtered_report)
                     } else {
                         engine.format_terminal(&report)

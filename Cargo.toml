@@ -11,6 +11,7 @@ members = [
     "crates/cyberguard-dast",
     "crates/cyberguard-api",
     "crates/cyberguard-cloud",
+    "crates/cyberguard-iac",
 ]
 resolver = "2"
 
@@ -73,6 +74,7 @@ cyberguard-net = { path = "crates/cyberguard-net" }
 cyberguard-dast = { path = "crates/cyberguard-dast" }
 cyberguard-api = { path = "crates/cyberguard-api" }
 cyberguard-cloud = { path = "crates/cyberguard-cloud" }
+cyberguard-iac = { path = "crates/cyberguard-iac" }
 
 # SAST Engine dependencies
 regex = "1.11"

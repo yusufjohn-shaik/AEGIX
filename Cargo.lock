@@ -358,6 +358,7 @@ dependencies = [
  "cyberguard-container",
  "cyberguard-core",
  "cyberguard-dast",
+ "cyberguard-iac",
  "cyberguard-net",
  "cyberguard-proc",
  "cyberguard-sast",
@@ -437,6 +438,24 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "cyberguard-iac"
+version = "0.9.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "cyberguard-core",
+ "cyberguard-secret",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "walkdir",
 ]
 
 [[package]]
