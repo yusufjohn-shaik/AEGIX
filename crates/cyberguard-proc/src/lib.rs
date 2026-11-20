@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 pub mod options;
 pub mod output;
 pub mod supervisor;

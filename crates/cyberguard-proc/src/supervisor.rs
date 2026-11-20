@@ -29,6 +29,7 @@ pub async fn execute_process(options: ProcessOptions) -> Result<ProcessOutput, C
     // Unix process-group isolation: ensures child and any spawned descendants
     // belong to a separate process group and cannot survive parent timeout.
     #[cfg(unix)]
+    #[allow(unsafe_code)]
     unsafe {
         cmd.pre_exec(|| {
             nix::unistd::setpgid(Pid::from_raw(0), Pid::from_raw(0))

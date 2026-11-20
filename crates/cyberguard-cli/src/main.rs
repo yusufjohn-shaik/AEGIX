@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cyberguard_api::{ApiConfig, ApiEngine, ApiScanner};
 use cyberguard_cloud::{CloudEngine, CloudScanner};

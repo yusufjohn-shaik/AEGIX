@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![deny(unsafe_code)]
 //! # CyberGuard SAST Engine
 //!
 //! High-performance, in-process Static Application Security Testing (SAST) engine.

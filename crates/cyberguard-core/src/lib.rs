@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 pub mod baseline;
 pub mod config;
 pub mod error;
