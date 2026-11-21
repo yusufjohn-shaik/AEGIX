@@ -1,0 +1,24 @@
+name: Hardened Secure Pipeline
+on:
+  pull_request:
+    branches: [main]
+
+permissions: read-all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+        with:
+          persist-credentials: false
+
+      - name: Run Build
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Processing PR safely: $TITLE"
+          cargo test --workspace

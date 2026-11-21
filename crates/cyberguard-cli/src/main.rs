@@ -12,6 +12,7 @@ use cyberguard_iac::{IacEngine, IacScanner};
 use cyberguard_net::{
     verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
 };
+use cyberguard_pipeline::{PipelineEngine, PipelineScanner};
 use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
 use cyberguard_sca::sbom::{generate_cyclonedx_json, generate_spdx_json};
 use cyberguard_sca::{ScaAnalyzer, ScaEngine};
@@ -67,6 +68,9 @@ pub enum Commands {
 
     /// Audit Infrastructure as Code (Kubernetes YAML/JSON, Helm, Terraform)
     Iac(IacArgs),
+
+    /// Audit CI/CD pipelines (GitHub Actions, GitLab CI) and SLSA provenance attestations
+    Pipeline(PipelineArgs),
 
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
@@ -310,6 +314,41 @@ pub struct IacArgs {
     /// Save discovered findings as a new baseline snapshot file
     #[arg(long, value_name = "FILE")]
     pub save_baseline: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct PipelineArgs {
+    /// Target pipeline file, workflow, SLSA attestation, directory to scan, or '-' for STDIN
+    #[arg(default_value = ".")]
+    pub target: PathBuf,
+
+    /// Optional target artifact to verify against SLSA provenance subject digests
+    #[arg(short, long, value_name = "ARTIFACT_FILE")]
+    pub artifact: Option<PathBuf>,
+
+    /// Output report format: terminal, sarif, json
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+
+    /// Optional output file to write the audit results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
+
+    /// Trusted SLSA builder identities (multiple flags supported)
+    #[arg(long, value_name = "BUILDER_URI")]
+    pub trusted_builder: Vec<String>,
+
+    /// Expected official source repository URL to verify in SLSA materials
+    #[arg(long, value_name = "REPO_URL")]
+    pub expected_repo: Option<String>,
 }
 
 fn parse_ports_spec(spec: &str) -> anyhow::Result<Vec<u16>> {
@@ -1121,6 +1160,76 @@ async fn main() -> anyhow::Result<()> {
                 print!("{}", output_str);
             }
         }
+        Some(Commands::Pipeline(args)) => {
+            let mut engine = PipelineEngine::new();
+
+            for tb in &args.trusted_builder {
+                engine = engine.with_trusted_builder(tb);
+            }
+            if let Some(ref repo) = args.expected_repo {
+                engine = engine.with_expected_source_repo(repo);
+            }
+
+            // Load baseline for suppression if requested
+            let baseline_opt = if let Some(ref base_path) = args.baseline {
+                let base = cyberguard_core::baseline::AegixBaseline::load_from_path(base_path)?;
+                engine = engine.with_baseline(base.clone());
+                Some(base)
+            } else {
+                None
+            };
+
+            let report = if args.target.to_string_lossy() == "-" {
+                let mut stdin = std::io::stdin();
+                engine
+                    .scan_reader(&mut stdin, &PathBuf::from("stdin.yaml"))
+                    .await?
+            } else if args.target.is_dir() {
+                engine.scan_directory(&args.target).await?
+            } else {
+                engine
+                    .scan_file(&args.target, args.artifact.as_deref())
+                    .await?
+            };
+
+            // Handle save baseline if requested
+            if let Some(ref save_path) = args.save_baseline {
+                let baseline = engine.generate_baseline(&report, &args.target);
+                baseline.save_to_path(save_path)?;
+                println!(
+                    "Saved {} findings to baseline snapshot '{}'",
+                    report.findings.len(),
+                    save_path.display()
+                );
+            }
+
+            let output_str = match args.format {
+                OutputFormat::Json => serde_json::to_string_pretty(&report)?,
+                OutputFormat::Sarif => {
+                    let sarif = engine.to_sarif(&report)?;
+                    serde_json::to_string_pretty(&sarif)?
+                }
+                OutputFormat::Terminal => {
+                    if let Some(ref base) = baseline_opt {
+                        let filtered_report = PipelineEngine::filter_baseline(&report, base);
+                        format_pipeline_terminal(&filtered_report)
+                    } else {
+                        format_pipeline_terminal(&report)
+                    }
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Audit report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+
+            if !report.findings.is_empty() {
+                std::process::exit(1);
+            }
+        }
         Some(Commands::Trace(args)) => {
             println!(
                 "🕸️  Constructing in-memory Attack Path Graph (DAG) for: {}",
@@ -1155,4 +1264,52 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn format_pipeline_terminal(report: &cyberguard_pipeline::PipelineReport) -> String {
+    let mut out = String::new();
+    out.push_str("\n🛡️  Aegix CI/CD Pipeline & SLSA Provenance Security Audit Report\n");
+    out.push_str("======================================================================\n");
+    out.push_str(&format!("Target:            {}\n", report.target_path));
+    out.push_str(&format!(
+        "Documents Scanned: {}\n",
+        report.total_documents_scanned
+    ));
+    out.push_str(&format!(
+        "Jobs Evaluated:    {}\n",
+        report.total_jobs_evaluated
+    ));
+    out.push_str(&format!(
+        "Steps Evaluated:   {}\n",
+        report.total_steps_evaluated
+    ));
+    out.push_str(&format!(
+        "Suppressed:        {}\n",
+        report.suppressed_findings_count
+    ));
+    out.push_str(&format!("Active Findings:   {}\n", report.findings.len()));
+    out.push_str("----------------------------------------------------------------------\n");
+
+    if report.findings.is_empty() {
+        out.push_str("✅ No pipeline security or SLSA provenance vulnerabilities discovered.\n\n");
+        return out;
+    }
+
+    for (i, f) in report.findings.iter().enumerate() {
+        out.push_str(&format!(
+            "[{}] {} ({}) - {:?}\n",
+            i + 1,
+            f.rule_id,
+            f.title,
+            f.severity
+        ));
+        out.push_str(&format!(
+            "    Location: {}:{}:{}\n",
+            f.file_path, f.line, f.column
+        ));
+        out.push_str(&format!("    Scope:    {}\n", f.location_path));
+        out.push_str(&format!("    Issue:    {}\n", f.description));
+        out.push_str(&format!("    Fix:      {}\n\n", f.remediation));
+    }
+    out
 }

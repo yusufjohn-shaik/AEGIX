@@ -1,0 +1,21 @@
+name: Vulnerable Pipeline
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: self-hosted
+    permissions: write-all
+    steps:
+      - name: Checkout Untrusted PR
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Print Issue Title and Run Insecure Script
+        env:
+          GITHUB_TOKEN: ghp_111122223333444455556666777788889999
+        run: |
+          echo "Title: ${{ github.event.issue.title }}"
+          echo "Running with ${{ env.GITHUB_TOKEN }}"

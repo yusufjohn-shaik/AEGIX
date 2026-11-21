@@ -47,7 +47,7 @@ These items address core credibility, developer adoption primitives, parser robu
 - [x] **Module 10: API Security & Spec Fuzzing (`cyberguard-api` / `aegix-api`):** OpenAPI 3.0 / 3.1 & Swagger 2.0 contract validator and autonomous contract boundary mutation fuzzing engine.
 - [x] **Module 11: Cloud Security (`aegix-cloud` / `cyberguard-cloud`):** AWS, GCP, Azure IAM and cloud security posture (CSPM/CIEM).
 - [x] **Module 12: IaC Security (`aegix-iac` / `cyberguard-iac`):** Terraform, Kubernetes, Helm static security linters and posture evaluation.
-- [ ] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline`):** GitHub Actions workflow auditor and SLSA provenance verifier.
+- [x] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline` / `cyberguard-pipeline`):** GitHub Actions & GitLab CI workflow auditor, DSSE envelope unwrapper, and SLSA v0.2/v1.0 provenance verifier.
 - [ ] **Module 14: Mobile Security (`aegix-mobile`):** Android APK / iOS IPA manifest and static security auditor.
 - [ ] **Module 15: Threat Modeling & ATT&CK Matrix (`aegix-threat`):** Automated MITRE ATT&CK mapping engine.
 - [ ] **Live Vulnerability Advisory Sync:** Automated synchronization with live OSV.dev and GitHub Security Advisories.

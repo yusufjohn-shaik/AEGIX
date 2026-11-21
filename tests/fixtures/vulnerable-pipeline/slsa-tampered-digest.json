@@ -1,0 +1,25 @@
+{
+  "_type": "https://in-toto.io/Statement/v0.1",
+  "subject": [
+    {
+      "name": "compromised-binary",
+      "digest": {
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ],
+  "predicateType": "https://slsa.dev/provenance/v0.2",
+  "predicate": {
+    "builder": {
+      "id": "https://example.com/untrusted-builder"
+    },
+    "materials": [
+      {
+        "uri": "git+https://github.com/attacker-repo/compromised-source",
+        "digest": {
+          "sha1": "bad0000000000000000000000000000000000000"
+        }
+      }
+    ]
+  }
+}

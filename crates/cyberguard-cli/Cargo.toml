@@ -22,6 +22,7 @@ cyberguard-dast = { workspace = true }
 cyberguard-api = { workspace = true }
 cyberguard-cloud = { workspace = true }
 cyberguard-iac = { workspace = true }
+cyberguard-pipeline = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

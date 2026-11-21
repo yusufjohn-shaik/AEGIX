@@ -1,0 +1,30 @@
+{
+  "_type": "https://in-toto.io/Statement/v0.1",
+  "subject": [
+    {
+      "name": "aegix-cli",
+      "digest": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "predicateType": "https://slsa.dev/provenance/v0.2",
+  "predicate": {
+    "builder": {
+      "id": "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.9.0"
+    },
+    "recipe": {
+      "type": "https://github.com/slsa-framework/slsa-github-generator/generic@v1",
+      "definedInMaterial": 0,
+      "entryPoint": "build"
+    },
+    "materials": [
+      {
+        "uri": "git+https://github.com/yusufjohn-shaik/AEGIX",
+        "digest": {
+          "sha1": "af98d03b0c44298fc1c149afbf4c8996fb92427a"
+        }
+      }
+    ]
+  }
+}
