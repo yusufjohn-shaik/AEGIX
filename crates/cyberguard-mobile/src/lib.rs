@@ -6,11 +6,13 @@
 
 #![deny(unsafe_code)]
 
+pub mod android;
 pub mod error;
 pub mod models;
 pub mod parser;
 pub mod traits;
 
+pub use android::DefaultAndroidAuditor;
 pub use error::MobileError;
 pub use models::*;
 pub use parser::*;
