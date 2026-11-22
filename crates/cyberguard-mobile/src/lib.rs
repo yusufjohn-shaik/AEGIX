@@ -7,6 +7,7 @@
 #![deny(unsafe_code)]
 
 pub mod android;
+pub mod engine;
 pub mod error;
 pub mod ios;
 pub mod models;
@@ -14,6 +15,7 @@ pub mod parser;
 pub mod traits;
 
 pub use android::DefaultAndroidAuditor;
+pub use engine::MobileEngine;
 pub use error::MobileError;
 pub use ios::DefaultIosAuditor;
 pub use models::*;
