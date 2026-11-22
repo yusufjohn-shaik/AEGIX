@@ -8,12 +8,14 @@
 
 pub mod android;
 pub mod error;
+pub mod ios;
 pub mod models;
 pub mod parser;
 pub mod traits;
 
 pub use android::DefaultAndroidAuditor;
 pub use error::MobileError;
+pub use ios::DefaultIosAuditor;
 pub use models::*;
 pub use parser::*;
 pub use traits::*;
