@@ -34,10 +34,10 @@
             android:name=".BackgroundSyncService"
             android:exported="true" />
 
-        <!-- Hardcoded Secret in Meta-Data -->
+        <!-- Hardcoded Secret in Meta-Data (RFC official dummy AWS key for testing) -->
         <meta-data
-            android:name="google_api_key"
-            android:value="AIzaSyA_exampleFakeGoogleApiKeyForTest1" />
+            android:name="aws_access_key"
+            android:value="AKIAIOSFODNN7EXAMPLE" />
 
     </application>
 </manifest>
