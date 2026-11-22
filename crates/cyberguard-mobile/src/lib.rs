@@ -1,0 +1,15 @@
+//! Mobile Security Static Analysis Engine (`cyberguard-mobile` / `aegix-mobile`).
+//!
+//! Provides static application security testing (SAST) and configuration auditing
+//! for Android packages/manifests (`.apk`, `AndroidManifest.xml`, `network_security_config.xml`)
+//! and iOS bundles/plists (`.ipa`, `Info.plist`, `*.entitlements`).
+
+#![deny(unsafe_code)]
+
+pub mod error;
+pub mod models;
+pub mod traits;
+
+pub use error::MobileError;
+pub use models::*;
+pub use traits::*;

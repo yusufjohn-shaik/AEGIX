@@ -1,0 +1,23 @@
+[package]
+name = "cyberguard-mobile"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Mobile Security Engine (Android & iOS) for Aegix"
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-secret = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+walkdir = { workspace = true }
+flate2 = { workspace = true }
+plist = { workspace = true }
+quick-xml = { workspace = true }
