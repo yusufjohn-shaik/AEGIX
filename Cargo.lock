@@ -359,6 +359,7 @@ dependencies = [
  "cyberguard-core",
  "cyberguard-dast",
  "cyberguard-iac",
+ "cyberguard-mobile",
  "cyberguard-net",
  "cyberguard-pipeline",
  "cyberguard-proc",

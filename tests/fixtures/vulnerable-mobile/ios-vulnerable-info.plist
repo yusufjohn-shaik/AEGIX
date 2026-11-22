@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.example.vulnerableios</string>
+    <key>CFBundleName</key>
+    <string>VulnerableIOS</string>
+
+    <!-- Insecure ATS Exceptions -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>insecure.example.com</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
+    <!-- Insecure URL Schemes -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>http</string>
+                <string>a</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Generic / Weak Privacy Strings -->
+    <key>NSCameraUsageDescription</key>
+    <string>Need camera</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>TODO</string>
+
+    <!-- Hardcoded Secret -->
+    <key>AWS_KEY</key>
+    <string>AKIAIOSFODNN7EXAMPLE</string>
+</dict>
+</plist>

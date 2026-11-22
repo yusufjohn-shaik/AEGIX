@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.vulnerableapp">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <application
+        android:allowBackup="true"
+        android:debuggable="true"
+        android:usesCleartextTraffic="true"
+        android:label="VulnerableApp">
+
+        <!-- Exported activity missing permission -->
+        <activity
+            android:name=".InsecureActivity"
+            android:exported="true" />
+
+        <!-- Main Launcher (Legitimately Exported) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Exported background service without permission -->
+        <service
+            android:name=".BackgroundSyncService"
+            android:exported="true" />
+
+        <!-- Hardcoded Secret in Meta-Data -->
+        <meta-data
+            android:name="google_api_key"
+            android:value="AIzaSyA_exampleFakeGoogleApiKeyForTest1" />
+
+    </application>
+</manifest>

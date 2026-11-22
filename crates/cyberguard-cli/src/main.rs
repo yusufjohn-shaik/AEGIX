@@ -72,6 +72,9 @@ pub enum Commands {
     /// Audit CI/CD pipelines (GitHub Actions, GitLab CI) and SLSA provenance attestations
     Pipeline(PipelineArgs),
 
+    /// Audit mobile applications (Android APK, AndroidManifest.xml, iOS IPA, Info.plist, Entitlements)
+    Mobile(MobileArgs),
+
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
 
@@ -349,6 +352,33 @@ pub struct PipelineArgs {
     /// Expected official source repository URL to verify in SLSA materials
     #[arg(long, value_name = "REPO_URL")]
     pub expected_repo: Option<String>,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct MobileArgs {
+    /// Target mobile package (.apk, .ipa), manifest, plist, directory to scan, or '-' for STDIN
+    #[arg(default_value = ".")]
+    pub target: PathBuf,
+
+    /// Enforce release mode security checks (escalates debuggable flags to errors)
+    #[arg(long, default_value_t = false)]
+    pub release: bool,
+
+    /// Output report format: terminal, sarif, json
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+
+    /// Optional output file to write the audit results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
 }
 
 fn parse_ports_spec(spec: &str) -> anyhow::Result<Vec<u16>> {
@@ -1230,6 +1260,84 @@ async fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
+        Some(Commands::Mobile(args)) => {
+            use cyberguard_mobile::traits::MobileScanner;
+            use cyberguard_mobile::MobileEngine;
+            use std::io::Read;
+
+            let baseline_opt = if let Some(ref base_path) = args.baseline {
+                if base_path.exists() {
+                    let file = std::fs::File::open(base_path)?;
+                    let reader = std::io::BufReader::new(file);
+                    let base: cyberguard_core::baseline::AegixBaseline =
+                        serde_json::from_reader(reader)?;
+                    Some(base)
+                } else {
+                    anyhow::bail!("Baseline file not found at: {}", base_path.display());
+                }
+            } else {
+                None
+            };
+
+            let mut engine = MobileEngine::new(args.release);
+            if let Some(ref base) = baseline_opt {
+                engine = engine.with_baseline(base.clone());
+            }
+
+            let report = if args.target == Path::new("-") {
+                let mut stdin = std::io::stdin();
+                let mut buffer = Vec::new();
+                stdin.read_to_end(&mut buffer)?;
+                let mut cursor = std::io::Cursor::new(buffer);
+                engine
+                    .scan_reader(&mut cursor, Path::new("stdin-mobile.xml"))
+                    .await?
+            } else if args.target.is_file() {
+                engine.scan_file(&args.target).await?
+            } else if args.target.is_dir() {
+                engine.scan_directory(&args.target).await?
+            } else {
+                anyhow::bail!("Target path not found: {}", args.target.display());
+            };
+
+            if let Some(ref save_path) = args.save_baseline {
+                let new_baseline = engine.generate_baseline(&report, &args.target);
+                let json_data = serde_json::to_string_pretty(&new_baseline)?;
+                std::fs::write(save_path, json_data)?;
+                println!(
+                    "Saved {} findings to baseline snapshot '{}'",
+                    report.findings.len(),
+                    save_path.display()
+                );
+            }
+
+            let output_str = match args.format {
+                OutputFormat::Json => serde_json::to_string_pretty(&report)?,
+                OutputFormat::Sarif => {
+                    let sarif = engine.to_sarif(&report)?;
+                    serde_json::to_string_pretty(&sarif)?
+                }
+                OutputFormat::Terminal => {
+                    if let Some(ref base) = baseline_opt {
+                        let filtered_report = MobileEngine::filter_baseline(&report, base);
+                        format_mobile_terminal(&filtered_report)
+                    } else {
+                        format_mobile_terminal(&report)
+                    }
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Audit report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+
+            if !report.findings.is_empty() {
+                std::process::exit(1);
+            }
+        }
         Some(Commands::Trace(args)) => {
             println!(
                 "🕸️  Constructing in-memory Attack Path Graph (DAG) for: {}",
@@ -1292,6 +1400,55 @@ fn format_pipeline_terminal(report: &cyberguard_pipeline::PipelineReport) -> Str
 
     if report.findings.is_empty() {
         out.push_str("✅ No pipeline security or SLSA provenance vulnerabilities discovered.\n\n");
+        return out;
+    }
+
+    for (i, f) in report.findings.iter().enumerate() {
+        out.push_str(&format!(
+            "[{}] {} ({}) - {:?}\n",
+            i + 1,
+            f.rule_id,
+            f.title,
+            f.severity
+        ));
+        out.push_str(&format!(
+            "    Location: {}:{}:{}\n",
+            f.file_path, f.line, f.column
+        ));
+        out.push_str(&format!("    Scope:    {}\n", f.location_path));
+        out.push_str(&format!("    Issue:    {}\n", f.description));
+        out.push_str(&format!("    Fix:      {}\n\n", f.remediation));
+    }
+    out
+}
+
+fn format_mobile_terminal(report: &cyberguard_mobile::MobileReport) -> String {
+    let mut out = String::new();
+    out.push_str("\n📱  Aegix Mobile Application Security Audit Report\n");
+    out.push_str("======================================================================\n");
+    out.push_str(&format!("Target:                 {}\n", report.target_path));
+    out.push_str(&format!(
+        "Documents Scanned:      {}\n",
+        report.total_documents_scanned
+    ));
+    out.push_str(&format!(
+        "Components Evaluated:   {}\n",
+        report.total_components_evaluated
+    ));
+    out.push_str(&format!(
+        "Suppressed:             {}\n",
+        report.suppressed_findings_count
+    ));
+    out.push_str(&format!(
+        "Active Findings:        {}\n",
+        report.findings.len()
+    ));
+    out.push_str("----------------------------------------------------------------------\n");
+
+    if report.findings.is_empty() {
+        out.push_str(
+            "✅ No mobile security vulnerabilities or insecure configurations discovered.\n\n",
+        );
         return out;
     }
 
