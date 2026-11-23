@@ -6,10 +6,12 @@
 
 #![deny(unsafe_code)]
 
+pub mod catalog;
 pub mod error;
 pub mod models;
 pub mod traits;
 
+pub use catalog::*;
 pub use error::ThreatError;
 pub use models::*;
 pub use traits::*;
