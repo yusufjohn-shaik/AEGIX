@@ -10,6 +10,8 @@ pub mod catalog;
 pub mod error;
 pub mod mapper;
 pub mod models;
+pub mod navigator;
+pub mod report;
 pub mod scorer;
 pub mod traits;
 
@@ -17,5 +19,7 @@ pub use catalog::*;
 pub use error::ThreatError;
 pub use mapper::*;
 pub use models::*;
+pub use navigator::*;
+pub use report::*;
 pub use scorer::*;
 pub use traits::*;
