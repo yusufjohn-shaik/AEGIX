@@ -1,0 +1,61 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "aegix-all",
+          "version": "0.9.0",
+          "informationUri": "https://github.com/yusufjohn-shaik/AEGIX",
+          "rules": [
+            {
+              "id": "CG-SEC-001",
+              "name": "Hardcoded Secret",
+              "shortDescription": { "text": "Hardcoded AWS Key" }
+            },
+            {
+              "id": "CG-CONT-001",
+              "name": "Privileged Container",
+              "shortDescription": { "text": "Privileged flag enabled in Dockerfile" }
+            },
+            {
+              "id": "CG-API-003",
+              "name": "Rate Limit Missing",
+              "shortDescription": { "text": "Missing rate limit on sensitive endpoint" }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CG-SEC-001",
+          "level": "error",
+          "message": { "text": "Hardcoded AWS Access Key identified in credentials block (CWE-798)" },
+          "properties": {
+            "cvss": 9.0,
+            "cwes": [798]
+          }
+        },
+        {
+          "ruleId": "CG-CONT-001",
+          "level": "error",
+          "message": { "text": "Privileged container flag allows breakout to host (CWE-250)" },
+          "properties": {
+            "cvss": 8.5,
+            "cwes": [250]
+          }
+        },
+        {
+          "ruleId": "CG-API-003",
+          "level": "warning",
+          "message": { "text": "Missing API Rate Limiting allows denial of service (CWE-400)" },
+          "properties": {
+            "cvss": 5.3,
+            "cwes": [400]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -346,6 +346,7 @@ impl Default for NavigatorFilters {
 #[serde(rename_all = "camelCase")]
 pub struct NavigatorLayout {
     pub layout: String,
+    #[serde(rename = "showID")]
     pub show_id: bool,
     pub show_name: bool,
     pub show_subtechniques: bool,

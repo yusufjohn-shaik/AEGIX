@@ -366,6 +366,7 @@ dependencies = [
  "cyberguard-sast",
  "cyberguard-sca",
  "cyberguard-secret",
+ "cyberguard-threat",
  "serde",
  "serde_json",
  "tokio",

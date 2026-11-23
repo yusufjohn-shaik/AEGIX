@@ -75,6 +75,9 @@ pub enum Commands {
     /// Audit mobile applications (Android APK, AndroidManifest.xml, iOS IPA, Info.plist, Entitlements)
     Mobile(MobileArgs),
 
+    /// Threat modeling, STRIDE classification, and MITRE ATT&CK Matrix generation
+    Threat(ThreatArgs),
+
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
 
@@ -379,6 +382,49 @@ pub struct MobileArgs {
     /// Save discovered findings as a new baseline snapshot file
     #[arg(long, value_name = "FILE")]
     pub save_baseline: Option<PathBuf>,
+}
+
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThreatOutputFormat {
+    Terminal,
+    Sarif,
+    Json,
+    Navigator,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct ThreatArgs {
+    /// Path to SARIF v2.1.0 telemetry file or '-' for STDIN
+    #[arg(default_value = "-")]
+    pub input: PathBuf,
+
+    /// Target MITRE ATT&CK Matrix Domain (enterprise, cloud, mobile, container)
+    #[arg(short, long, default_value = "enterprise")]
+    pub domain: String,
+
+    /// Output report format: terminal, sarif, json, navigator
+    #[arg(short, long, value_enum, default_value_t = ThreatOutputFormat::Terminal)]
+    pub format: ThreatOutputFormat,
+
+    /// Optional output file to write threat model or Navigator layer
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Display MITRE ATT&CK terminal matrix only
+    #[arg(long, default_value_t = false)]
+    pub matrix: bool,
+
+    /// Display STRIDE threat distribution cards only
+    #[arg(long, default_value_t = false)]
+    pub stride: bool,
+
+    /// Layer name for the generated ATT&CK Navigator Layer
+    #[arg(long, default_value = "Aegix Security Threat Matrix")]
+    pub layer_name: String,
 }
 
 fn parse_ports_spec(spec: &str) -> anyhow::Result<Vec<u16>> {
@@ -1335,6 +1381,72 @@ async fn main() -> anyhow::Result<()> {
             }
 
             if !report.findings.is_empty() {
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Threat(args)) => {
+            use cyberguard_threat::models::MitreMatrixDomain;
+            use cyberguard_threat::report::ThreatReportFormatter;
+            use cyberguard_threat::traits::ThreatScanner;
+            use cyberguard_threat::ThreatEngine;
+            use std::io::Read;
+
+            let baseline_opt = if let Some(ref base_path) = args.baseline {
+                if base_path.exists() {
+                    let file = std::fs::File::open(base_path)?;
+                    let reader = std::io::BufReader::new(file);
+                    let base: cyberguard_core::baseline::AegixBaseline =
+                        serde_json::from_reader(reader)?;
+                    Some(base)
+                } else {
+                    anyhow::bail!("Baseline file not found at: {}", base_path.display());
+                }
+            } else {
+                None
+            };
+
+            let domain = MitreMatrixDomain::from_str_loose(&args.domain)
+                .unwrap_or(MitreMatrixDomain::EnterpriseAttack);
+
+            let mut engine = ThreatEngine::new()
+                .with_domain(domain)
+                .with_layer_name(args.layer_name);
+
+            if let Some(base) = baseline_opt {
+                engine = engine.with_baseline(base);
+            }
+
+            let report = if args.input == Path::new("-") {
+                let mut stdin = std::io::stdin();
+                let mut buffer = String::new();
+                stdin.read_to_string(&mut buffer)?;
+                engine.scan_sarif(&buffer).await?
+            } else if args.input.is_file() {
+                engine.scan_file(&args.input).await?
+            } else {
+                anyhow::bail!("Input SARIF file not found: {}", args.input.display());
+            };
+
+            let output_str = match args.format {
+                ThreatOutputFormat::Json => ThreatReportFormatter::to_json(&report)?,
+                ThreatOutputFormat::Navigator => ThreatReportFormatter::to_navigator_json(&report)?,
+                ThreatOutputFormat::Sarif => {
+                    let sarif = engine.export_sarif_report(&report)?;
+                    serde_json::to_string_pretty(&sarif)?
+                }
+                ThreatOutputFormat::Terminal => {
+                    ThreatReportFormatter::render_terminal(&report, engine.catalog())
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Threat model report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+
+            if report.total_findings > 0 {
                 std::process::exit(1);
             }
         }
