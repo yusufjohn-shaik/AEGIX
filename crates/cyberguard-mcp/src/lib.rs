@@ -6,11 +6,13 @@
 
 #![deny(unsafe_code)]
 
+pub mod catalogs;
 pub mod error;
 pub mod executor;
 pub mod protocol;
 pub mod traits;
 
+pub use catalogs::*;
 pub use error::*;
 pub use executor::*;
 pub use protocol::*;
