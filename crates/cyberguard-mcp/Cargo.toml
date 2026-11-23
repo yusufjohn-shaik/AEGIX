@@ -1,0 +1,26 @@
+[package]
+name = "cyberguard-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Model Context Protocol (MCP v2024-11-05) Server for Aegix Security Platform"
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-sast = { workspace = true }
+cyberguard-sca = { workspace = true }
+cyberguard-secret = { workspace = true }
+cyberguard-container = { workspace = true }
+cyberguard-iac = { workspace = true }
+cyberguard-pipeline = { workspace = true }
+cyberguard-mobile = { workspace = true }
+cyberguard-threat = { workspace = true }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
