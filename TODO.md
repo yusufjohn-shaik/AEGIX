@@ -49,7 +49,7 @@ These items address core credibility, developer adoption primitives, parser robu
 - [x] **Module 12: IaC Security (`aegix-iac` / `cyberguard-iac`):** Terraform, Kubernetes, Helm static security linters and posture evaluation.
 - [x] **Module 13: CI/CD Pipeline & SLSA Provenance (`aegix-pipeline` / `cyberguard-pipeline`):** GitHub Actions & GitLab CI workflow auditor, DSSE envelope unwrapper, and SLSA v0.2/v1.0 provenance verifier.
 - [x] **Module 14: Mobile Security (`aegix-mobile` / `cyberguard-mobile`):** Android APK (`AndroidManifest.xml`, `network_security_config.xml`) & iOS IPA (`Info.plist`, `*.entitlements`) static security auditor, AXML / binary plist ingestion, and MASVS/OWASP rules engine.
-- [ ] **Module 15: Threat Modeling & ATT&CK Matrix (`aegix-threat`):** Automated MITRE ATT&CK mapping engine.
+- [x] **Module 15: Threat Modeling & ATT&CK Matrix (`aegix-threat` / `cyberguard-threat`):** Automated MITRE ATT&CK Enterprise/Cloud/Mobile/Container matrix mapping, STRIDE classification, asymptotic saturation scoring, and ATT&CK Navigator v4.5/v5.0 layer export.
 - [ ] **Live Vulnerability Advisory Sync:** Automated synchronization with live OSV.dev and GitHub Security Advisories.
 - [ ] **Verified Secret Liveness Checks:** Optional safe active API verification (`--verify-secrets`) to test if discovered keys are active.
 
