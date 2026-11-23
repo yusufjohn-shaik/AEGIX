@@ -538,6 +538,7 @@ async fn main() -> anyhow::Result<()> {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(log_level)
         .with_target(false)
+        .with_writer(std::io::stderr)
         .finish();
 
     let _ = tracing::subscriber::set_global_default(subscriber);
@@ -1467,12 +1468,13 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Some(Commands::Mcp(args)) => {
-            println!("🤖 Aegix Model Context Protocol (MCP) Server");
             if let Some(port) = args.port {
-                println!("Starting SSE transport on port {}", port);
-            } else {
-                println!("Listening on stdio (JSON-RPC 2.0)...");
+                tracing::warn!(
+                    "SSE transport on port {} is disabled in air-gapped mode; defaulting to stdio",
+                    port
+                );
             }
+            cyberguard_mcp::server::run_stdio_server().await?;
         }
         None => {
             println!(
