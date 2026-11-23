@@ -42,6 +42,9 @@ pub enum McpError {
     #[error("Prompt template not found: '{0}'")]
     PromptNotFound(String),
 
+    #[error("Transport error: {0}")]
+    TransportError(String),
+
     #[error("Transport I/O error: {0}")]
     Transport(#[from] std::io::Error),
 
@@ -60,7 +63,7 @@ impl McpError {
             Self::InternalError(_) | Self::Serialization(_) => CODE_INTERNAL_ERROR,
             Self::ResourceNotFound(_) => CODE_RESOURCE_NOT_FOUND,
             Self::PromptNotFound(_) => CODE_PROMPT_NOT_FOUND,
-            Self::Transport(_) => CODE_TRANSPORT_ERROR,
+            Self::TransportError(_) | Self::Transport(_) => CODE_TRANSPORT_ERROR,
         }
     }
 }
@@ -72,6 +75,36 @@ pub struct JsonRpcError {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
+}
+
+impl JsonRpcError {
+    pub fn new(code: i32, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            data: None,
+        }
+    }
+
+    pub fn parse_error(message: impl Into<String>) -> Self {
+        Self::new(CODE_PARSE_ERROR, message)
+    }
+
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self::new(CODE_INVALID_REQUEST, message)
+    }
+
+    pub fn method_not_found(message: impl Into<String>) -> Self {
+        Self::new(CODE_METHOD_NOT_FOUND, message)
+    }
+
+    pub fn invalid_params(message: impl Into<String>) -> Self {
+        Self::new(CODE_INVALID_PARAMS, message)
+    }
+
+    pub fn internal_error(message: impl Into<String>) -> Self {
+        Self::new(CODE_INTERNAL_ERROR, message)
+    }
 }
 
 impl From<McpError> for JsonRpcError {
