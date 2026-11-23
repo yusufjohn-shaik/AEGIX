@@ -7,6 +7,7 @@
 #![deny(unsafe_code)]
 
 pub mod catalog;
+pub mod engine;
 pub mod error;
 pub mod mapper;
 pub mod models;
@@ -16,6 +17,7 @@ pub mod scorer;
 pub mod traits;
 
 pub use catalog::*;
+pub use engine::*;
 pub use error::ThreatError;
 pub use mapper::*;
 pub use models::*;

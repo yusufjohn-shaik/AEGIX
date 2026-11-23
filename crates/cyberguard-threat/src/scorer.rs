@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub const DEFAULT_SATURATION_ALPHA: f64 = 0.75;
 
 /// ThreatScorer evaluates finding weights and aggregates techniques and STRIDE metrics.
+#[derive(Debug, Clone, Copy)]
 pub struct ThreatScorer {
     alpha: f64,
 }
