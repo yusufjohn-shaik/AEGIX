@@ -7,9 +7,11 @@
 #![deny(unsafe_code)]
 
 pub mod error;
+pub mod executor;
 pub mod protocol;
 pub mod traits;
 
 pub use error::*;
+pub use executor::*;
 pub use protocol::*;
 pub use traits::*;
