@@ -16,6 +16,7 @@ members = [
     "crates/cyberguard-mobile",
     "crates/cyberguard-threat",
     "crates/cyberguard-mcp",
+    "crates/cyberguard-graph",
 ]
 resolver = "2"
 
@@ -83,6 +84,7 @@ cyberguard-pipeline = { path = "crates/cyberguard-pipeline" }
 cyberguard-mobile = { path = "crates/cyberguard-mobile" }
 cyberguard-threat = { path = "crates/cyberguard-threat" }
 cyberguard-mcp = { path = "crates/cyberguard-mcp" }
+cyberguard-graph = { path = "crates/cyberguard-graph" }
 base64 = "0.22"
 plist = "1.10"
 quick-xml = "0.42"

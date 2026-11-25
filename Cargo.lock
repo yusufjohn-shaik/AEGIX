@@ -445,6 +445,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyberguard-graph"
+version = "0.9.0"
+dependencies = [
+ "cyberguard-core",
+ "cyberguard-threat",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "cyberguard-iac"
 version = "0.9.0"
 dependencies = [
