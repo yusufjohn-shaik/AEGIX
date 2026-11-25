@@ -7,6 +7,7 @@
 
 pub mod correlation;
 pub mod error;
+pub mod export;
 pub mod ingestion;
 pub mod models;
 pub mod scoring;
@@ -15,6 +16,7 @@ pub mod traversal;
 
 pub use correlation::*;
 pub use error::*;
+pub use export::*;
 pub use ingestion::*;
 pub use models::*;
 pub use scoring::*;

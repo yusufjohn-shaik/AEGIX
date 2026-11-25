@@ -12,6 +12,9 @@ pub enum GraphError {
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 
+    #[error("Formatting error: {0}")]
+    Fmt(#[from] std::fmt::Error),
+
     #[error("Node not found in graph: '{0}'")]
     NodeNotFound(String),
 
