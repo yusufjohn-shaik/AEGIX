@@ -9,10 +9,14 @@ pub mod correlation;
 pub mod error;
 pub mod ingestion;
 pub mod models;
+pub mod scoring;
 pub mod traits;
+pub mod traversal;
 
 pub use correlation::*;
 pub use error::*;
 pub use ingestion::*;
 pub use models::*;
+pub use scoring::*;
 pub use traits::*;
+pub use traversal::*;
