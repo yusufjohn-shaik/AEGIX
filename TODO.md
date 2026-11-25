@@ -55,7 +55,7 @@ These items address core credibility, developer adoption primitives, parser robu
 
 ### Phase 1.5: The Autonomous Differentiators (Modules 16–19)
 - [x] **Module 16: Model Context Protocol (MCP) Server (`aegix-mcp` / `cyberguard-mcp`):** Native JSON-RPC 2.0 stdio MCP server enabling Cursor, Claude Code, Antigravity, and AI coding agents to invoke scans, query rules and threat models, and receive AST fix prompts.
-- [ ] **Module 17: Attack Path Engine (`aegix-graph`):** In-memory Directed Acyclic Graph (DAG) connecting external entrypoints $\to$ API routes $\to$ reachable CVEs $\to$ leaked secrets $\to$ cloud privilege escalation.
+- [x] **Module 17: Attack Path Engine (`aegix-graph` / `cyberguard-graph`):** In-memory Directed Graph (DG) connecting external entrypoints $\to$ services $\to$ reachable vulnerabilities $\to$ leaked secrets $\to$ assets $\to$ privilege escalation $\to$ terminal impacts, compounding path risk scoring, cut-vertex choke point isolation, and multi-format exporters (Terminal, Mermaid, JSON, SARIF CodeFlow).
 - [ ] **Module 18: Tri-Factor Prioritizer (`aegix-risk`):**
   - Implement real single-language reachability analysis (Rust call-graph via `cargo metadata` first).
   - Compute mathematical risk: $\text{Score} = \text{CVSS} \times \text{EPSS} \times \text{Reachability}$.

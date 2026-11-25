@@ -13,7 +13,7 @@ async fn test_list_tools_schema_catalog() {
     let facade = AegixEngineFacade::new();
     let tools = facade.list_tools();
 
-    assert_eq!(tools.len(), 9);
+    assert_eq!(tools.len(), 10);
 
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     assert!(tool_names.contains(&"aegix_scan"));
@@ -24,6 +24,7 @@ async fn test_list_tools_schema_catalog() {
     assert!(tool_names.contains(&"aegix_pipeline"));
     assert!(tool_names.contains(&"aegix_mobile"));
     assert!(tool_names.contains(&"aegix_threat"));
+    assert!(tool_names.contains(&"aegix_graph"));
     assert!(tool_names.contains(&"aegix_explain"));
 
     for tool in &tools {
