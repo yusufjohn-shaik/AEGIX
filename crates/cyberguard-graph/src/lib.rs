@@ -5,10 +5,14 @@
 
 #![deny(unsafe_code)]
 
+pub mod correlation;
 pub mod error;
+pub mod ingestion;
 pub mod models;
 pub mod traits;
 
+pub use correlation::*;
 pub use error::*;
+pub use ingestion::*;
 pub use models::*;
 pub use traits::*;
