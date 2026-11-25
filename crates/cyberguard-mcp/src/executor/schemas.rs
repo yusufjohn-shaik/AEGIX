@@ -185,6 +185,38 @@ pub fn get_tool_catalog() -> Vec<Tool> {
             }),
         },
         Tool {
+            name: "aegix_graph".to_string(),
+            description: Some(
+                "Multi-layer Attack Path Engine synthesizing findings across entrypoints, vulnerabilities, secrets, and cloud assets into exploit chains and remediation choke points.".to_string(),
+            ),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Target project directory or SARIF report file to construct the attack graph"
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "Maximum traversal depth (hop count) for path discovery (default: 10)"
+                    },
+                    "min_risk": {
+                        "type": "number",
+                        "description": "Minimum path risk score threshold to report (default: 0.0)"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output representation: 'markdown', 'mermaid', 'json', or 'sarif' (default: 'markdown')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of exploit paths to return (default: 10)"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
+        Tool {
             name: "aegix_explain".to_string(),
             description: Some(
                 "Provides in-depth technical explanation, vulnerability impact analysis, CWE references, and syntax-preserving remediation guidance for an Aegix rule ID.".to_string(),

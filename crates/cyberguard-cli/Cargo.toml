@@ -26,6 +26,7 @@ cyberguard-pipeline = { workspace = true }
 cyberguard-mobile = { workspace = true }
 cyberguard-threat = { workspace = true }
 cyberguard-mcp = { workspace = true }
+cyberguard-graph = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

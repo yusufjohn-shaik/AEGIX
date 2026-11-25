@@ -10,6 +10,11 @@ use async_trait::async_trait;
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::baseline::AegixBaseline;
 use cyberguard_core::sarif::{SarifLevel, SarifLog, SarifResult};
+use cyberguard_graph::{
+    AttackGraph, ChokePointAnalyzer, GraphCorrelator, GraphExporter, JsonExporter, MermaidExporter,
+    PathFinder, SarifExporter, StandardChokePointAnalyzer, StandardGraphCorrelator,
+    StandardPathFinder, StandardTelemetryIngester, TelemetryIngester, TerminalExporter,
+};
 use cyberguard_iac::traits::IacScanner;
 use cyberguard_iac::IacEngine;
 use cyberguard_mobile::traits::MobileScanner;
@@ -682,6 +687,125 @@ USER appuser
 
         CallToolResult::success(explanation.to_string())
     }
+
+    /// Execute the Attack Path Engine over project findings or SARIF reports.
+    async fn run_aegix_graph(
+        &self,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> CallToolResult {
+        let path = match Self::extract_path(&args) {
+            Ok(p) => p,
+            Err(fail) => return fail,
+        };
+
+        let max_depth = args
+            .as_ref()
+            .and_then(|m| m.get("max_depth"))
+            .and_then(|v| v.as_u64())
+            .map(|u| u as usize)
+            .unwrap_or(10);
+
+        let min_risk = args
+            .as_ref()
+            .and_then(|m| m.get("min_risk"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        let limit = args
+            .as_ref()
+            .and_then(|m| m.get("limit"))
+            .and_then(|v| v.as_u64())
+            .map(|u| u as usize)
+            .unwrap_or(10);
+
+        let format_choice = args
+            .as_ref()
+            .and_then(|m| m.get("format"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown");
+
+        let mut graph = AttackGraph::new();
+        let ingester = StandardTelemetryIngester::new();
+
+        // If target is a SARIF/JSON file, load directly
+        if path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(sarif) = serde_json::from_str::<SarifLog>(&content) {
+                    let _ = ingester.ingest_sarif(&mut graph, &sarif);
+                }
+            }
+        }
+
+        // If graph is empty (e.g. scanning a directory), gather findings via multi-engine scan
+        if graph.node_count() == 0 {
+            let mut sarif_log = SarifLog::new("aegix-mcp", "0.9.0");
+
+            let sast_engine = NativeRuleEngine::default();
+            let ctx = ScanContext::new(&path);
+            if let Ok(findings) = sast_engine.analyze(&ctx).await {
+                for f in findings {
+                    sarif_log.add_result(f);
+                }
+            }
+
+            let secret_engine = SecretEngine::default();
+            if let Ok(raw_secrets) = secret_engine.scan_path(&path).await {
+                for s in secret_engine.to_sarif(&raw_secrets) {
+                    sarif_log.add_result(s);
+                }
+            }
+
+            let _ = ingester.ingest_sarif(&mut graph, &sarif_log);
+        }
+
+        let correlator = StandardGraphCorrelator::new();
+        if let Err(e) = correlator.correlate(&mut graph) {
+            return CallToolResult::failure(format!("Correlation error: {}", e));
+        }
+
+        let path_finder = StandardPathFinder::new();
+        let paths = match path_finder.find_paths(&graph, max_depth, limit, min_risk) {
+            Ok(p) => p,
+            Err(e) => return CallToolResult::failure(format!("Traversal error: {}", e)),
+        };
+
+        let analyzer = StandardChokePointAnalyzer::new();
+        let choke_points = match analyzer.analyze_choke_points(&graph, &paths) {
+            Ok(cp) => cp,
+            Err(e) => return CallToolResult::failure(format!("Choke-point analysis error: {}", e)),
+        };
+
+        match format_choice {
+            "mermaid" => {
+                let exporter = MermaidExporter::new();
+                match exporter.export(&graph, &paths, &choke_points) {
+                    Ok(rendered) => CallToolResult::success(rendered),
+                    Err(e) => CallToolResult::failure(format!("Mermaid export error: {}", e)),
+                }
+            }
+            "json" => {
+                let exporter = JsonExporter::new();
+                match exporter.export(&graph, &paths, &choke_points) {
+                    Ok(rendered) => CallToolResult::success(rendered),
+                    Err(e) => CallToolResult::failure(format!("JSON export error: {}", e)),
+                }
+            }
+            "sarif" => {
+                let exporter = SarifExporter::new();
+                match exporter.export(&graph, &paths, &choke_points) {
+                    Ok(rendered) => CallToolResult::success(rendered),
+                    Err(e) => CallToolResult::failure(format!("SARIF export error: {}", e)),
+                }
+            }
+            _ => {
+                let exporter = TerminalExporter::new(false);
+                match exporter.export(&graph, &paths, &choke_points) {
+                    Ok(rendered) => CallToolResult::success(rendered),
+                    Err(e) => CallToolResult::failure(format!("Export error: {}", e)),
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -704,6 +828,7 @@ impl ToolExecutor for AegixEngineFacade {
             "aegix_pipeline" => self.run_aegix_pipeline(arguments).await,
             "aegix_mobile" => self.run_aegix_mobile(arguments).await,
             "aegix_threat" => self.run_aegix_threat(arguments).await,
+            "aegix_graph" => self.run_aegix_graph(arguments).await,
             "aegix_explain" => self.run_aegix_explain(arguments),
             unknown => CallToolResult::failure(format!("Unknown Aegix tool: '{}'", unknown)),
         };

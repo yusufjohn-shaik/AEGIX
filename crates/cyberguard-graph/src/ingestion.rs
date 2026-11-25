@@ -47,23 +47,36 @@ impl StandardTelemetryIngester {
             }
         }
 
-        // Determine NodeKind based on tool, rule, and message semantics
-        let kind = if tool_lower.contains("net")
-            || rule_lower.starts_with("net-")
-            || url_or_route.is_some()
-            || message_lower.contains("open port")
-            || message_lower.contains("public endpoint")
-        {
-            NodeKind::Entrypoint
-        } else if tool_lower.contains("secret")
-            || rule_lower.starts_with("sec-")
+        // Determine NodeKind based on rule, message, and tool semantics
+        let kind = if rule_lower.starts_with("sec-")
             || rule_lower.starts_with("secret-")
             || message_lower.contains("leaked secret")
             || message_lower.contains("api key")
             || message_lower.contains("private key")
-            || message_lower.contains("credentials")
+            || tool_lower.contains("secret")
         {
             NodeKind::Secret
+        } else if message_lower.contains("exfiltration")
+            || message_lower.contains("ransomware")
+            || message_lower.contains("system takeover")
+        {
+            NodeKind::Impact
+        } else if rule_lower.starts_with("sast-")
+            || rule_lower.starts_with("dast-")
+            || rule_lower.starts_with("cve-")
+            || message_lower.contains("vulnerability")
+            || message_lower.contains("injection")
+            || tool_lower.contains("sast")
+            || tool_lower.contains("dast")
+        {
+            NodeKind::Vulnerability
+        } else if rule_lower.starts_with("net-")
+            || url_or_route.is_some()
+            || message_lower.contains("open port")
+            || message_lower.contains("public endpoint")
+            || tool_lower.contains("net")
+        {
+            NodeKind::Entrypoint
         } else if tool_lower.contains("cloud")
             || tool_lower.contains("iac")
             || tool_lower.contains("ciem")
@@ -77,11 +90,6 @@ impl StandardTelemetryIngester {
             } else {
                 NodeKind::Asset
             }
-        } else if message_lower.contains("exfiltration")
-            || message_lower.contains("ransomware")
-            || message_lower.contains("system takeover")
-        {
-            NodeKind::Impact
         } else {
             NodeKind::Vulnerability
         };

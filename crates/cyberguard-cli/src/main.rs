@@ -483,12 +483,54 @@ pub enum AuditFormat {
     Spdx,
 }
 
-#[derive(Args, Debug, PartialEq, Eq)]
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TraceFormat {
+    Terminal,
+    Mermaid,
+    Json,
+    Sarif,
+}
+
+#[derive(Args, Debug, PartialEq)]
 pub struct TraceArgs {
-    /// Target repository path to construct Attack Path Graph
+    /// Target repository path or SARIF file to construct Attack Path Graph
     #[arg(default_value = ".")]
     pub path: PathBuf,
+
+    /// Optional path to SARIF v2.1.0 telemetry file or '-' for STDIN
+    #[arg(long, value_name = "FILE")]
+    pub input: Option<PathBuf>,
+
+    /// Output report format: terminal, mermaid, json, sarif
+    #[arg(short, long, value_enum, default_value_t = TraceFormat::Terminal)]
+    pub format: TraceFormat,
+
+    /// Optional output file to write the results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Maximum traversal depth (hop count)
+    #[arg(long, default_value_t = 10)]
+    pub max_depth: usize,
+
+    /// Minimum path risk score threshold to report (0.0 to 100.0)
+    #[arg(long, default_value_t = 0.0)]
+    pub min_risk: f64,
+
+    /// Compounding path risk threshold to trigger exit code 1
+    #[arg(long, default_value_t = 70.0)]
+    pub fail_on: f64,
+
+    /// Path to baseline snapshot file to filter known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
 }
+
+impl Eq for TraceArgs {}
 
 #[derive(Args, Debug, PartialEq, Eq)]
 pub struct FixArgs {
@@ -1452,11 +1494,139 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::Trace(args)) => {
-            println!(
-                "🕸️  Constructing in-memory Attack Path Graph (DAG) for: {}",
-                args.path.display()
-            );
-            println!("[+] Nodes: 0 | Edges: 0 | Exploit Chains: 0");
+            use cyberguard_graph::{
+                AttackGraph, ChokePointAnalyzer, GraphCorrelator, GraphExporter, JsonExporter,
+                MermaidExporter, PathFinder, SarifExporter, StandardChokePointAnalyzer,
+                StandardGraphCorrelator, StandardPathFinder, StandardTelemetryIngester,
+                TelemetryIngester, TerminalExporter,
+            };
+            use std::io::Read;
+
+            let mut graph = AttackGraph::new();
+            let ingester = StandardTelemetryIngester::new();
+
+            // 1. Ingest input telemetry from file, STDIN, or automated directory scan
+            let sarif_opt: Option<SarifLog> = if let Some(ref input_path) = args.input {
+                let content = if input_path == Path::new("-") {
+                    let mut stdin = std::io::stdin();
+                    let mut buffer = String::new();
+                    stdin.read_to_string(&mut buffer)?;
+                    buffer
+                } else if input_path.is_file() {
+                    std::fs::read_to_string(input_path)?
+                } else {
+                    anyhow::bail!("Input SARIF file not found: {}", input_path.display());
+                };
+                Some(serde_json::from_str(&content)?)
+            } else if args.path.is_file()
+                && (args
+                    .path
+                    .extension()
+                    .is_some_and(|ext| ext == "json" || ext == "sarif"))
+            {
+                let content = std::fs::read_to_string(&args.path)?;
+                Some(serde_json::from_str(&content)?)
+            } else {
+                None
+            };
+
+            if let Some(ref sarif) = sarif_opt {
+                ingester.ingest_sarif(&mut graph, sarif)?;
+            } else {
+                let mut sarif_log = SarifLog::new("aegix-trace", env!("CARGO_PKG_VERSION"));
+
+                let sast_engine = NativeRuleEngine::default();
+                let ctx = ScanContext::new(&args.path);
+                if let Ok(findings) = sast_engine.analyze(&ctx).await {
+                    for f in findings {
+                        sarif_log.add_result(f);
+                    }
+                }
+
+                let secret_engine = SecretEngine::default();
+                if let Ok(raw_secrets) = secret_engine.scan_path(&args.path).await {
+                    for s in secret_engine.to_sarif(&raw_secrets) {
+                        sarif_log.add_result(s);
+                    }
+                }
+
+                ingester.ingest_sarif(&mut graph, &sarif_log)?;
+            }
+
+            // 2. Correlate findings via 5-tier correlation engine
+            let correlator = StandardGraphCorrelator::new();
+            correlator.correlate(&mut graph)?;
+
+            // 3. Cycle-safe bounded DFS path discovery
+            let path_finder = StandardPathFinder::new();
+            let mut paths = path_finder.find_paths(&graph, args.max_depth, 100, args.min_risk)?;
+
+            // 4. Baseline filtering if provided
+            if let Some(ref base_path) = args.baseline {
+                if base_path.exists() {
+                    let baseline = AegixBaseline::load_from_path(base_path)?;
+                    paths.retain(|p| !baseline.contains(&format!("path:{}", p.id)));
+                }
+            }
+
+            if let Some(ref save_path) = args.save_baseline {
+                let mut base = AegixBaseline::new();
+                for p in &paths {
+                    let fp = format!("path:{}", p.id);
+                    base.fingerprints.insert(fp.clone());
+                    base.findings
+                        .push(cyberguard_core::baseline::BaselineFindingEntry {
+                            rule_id: "PATH-EXPLOIT-CHAIN".to_string(),
+                            fingerprint: fp,
+                            location: Some(format!("hops:{}", p.hop_count)),
+                            message: Some(format!("Attack path risk {:.1}", p.path_risk)),
+                        });
+                }
+                base.total_findings = base.fingerprints.len();
+                base.save_to_path(save_path)?;
+            }
+
+            // 5. Choke-point cut-vertex ranking
+            let analyzer = StandardChokePointAnalyzer::new();
+            let choke_points = analyzer.analyze_choke_points(&graph, &paths)?;
+
+            // 6. Export representation
+            let output_str = match args.format {
+                TraceFormat::Terminal => {
+                    let exporter = TerminalExporter::new(args.output.is_none());
+                    exporter.export(&graph, &paths, &choke_points)?
+                }
+                TraceFormat::Mermaid => {
+                    let exporter = MermaidExporter::new();
+                    exporter.export(&graph, &paths, &choke_points)?
+                }
+                TraceFormat::Json => {
+                    let exporter = JsonExporter::new();
+                    exporter.export(&graph, &paths, &choke_points)?
+                }
+                TraceFormat::Sarif => {
+                    let exporter = SarifExporter::new();
+                    exporter.export(&graph, &paths, &choke_points)?
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                std::fs::write(out_path, &output_str)?;
+                println!("Attack path report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+
+            // 7. Check fail_on threshold for exit code
+            let max_risk = paths
+                .iter()
+                .map(|p| p.path_risk)
+                .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .unwrap_or(0.0);
+
+            if max_risk >= args.fail_on {
+                std::process::exit(1);
+            }
         }
         Some(Commands::Fix(args)) => {
             println!("🛠️  Aegix AST Auto-Remediation Engine");
