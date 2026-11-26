@@ -5,10 +5,14 @@
 
 #![deny(unsafe_code)]
 
+pub mod call_graph;
+pub mod cargo_graph;
 pub mod error;
 pub mod models;
 pub mod traits;
 
+pub use call_graph::*;
+pub use cargo_graph::*;
 pub use error::*;
 pub use models::*;
 pub use traits::*;
