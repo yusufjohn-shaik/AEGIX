@@ -72,7 +72,46 @@ These items address core credibility, developer adoption primitives, parser robu
 
 ## 🚀 BUCKET 2: WHAT WE HAVE TO DO AFTER 21 MODULES (Launch, Scale & Commercialize)
 
-These items focus on packaging distribution, community building, empirical benchmarks, and business model monetization once the full 21-module engine is verified.
+These items focus on packaging distribution, community building, empirical benchmarks, security hardening, and business model monetization once the full 21-module engine is verified.
+
+### Phase 2.0: Post-21 Modules Security Audit Hardening Sprint
+Comprehensive security audit remediation prioritized for execution immediately following the completion of Modules 1–21.
+
+#### 1. Critical Audit Findings
+- [ ] **DAST ScopeGate Bypass & Optional HMAC Verification (`cyberguard-cli`, `cyberguard-dast`, `cyberguard-net`, `cyberguard-api`):**
+  - **Issue:** When `--scope` is omitted in `Commands::Dast` (`cyberguard-cli/src/main.rs:997-1036`), an ephemeral unsigned `SecurityScope` (signature: `None`) is synthesized, authorizing any user-supplied target without authorization. Furthermore, `verify_scope_hmac` is only invoked when `--scope-key` is supplied; omitting it accepts forged or unsigned `.security-scope.yaml` files. `NetworkEngine::scan`, `DastEngine::scan`, and `DefaultApiFuzzer::fuzz` never verify scope signatures.
+  - **Remediation Plan:** Require `--scope` and `--scope-key` (via env var or flag) by default. Restrict unauthenticated local scanning behind an explicit `--allow-localhost-unverified` flag. Verify HMAC strictly inside `ScopeGate` construction across all network engines.
+- [ ] **External DAST/API Runners & PinnedResolver SSRF / ScopeGate Bypass (`cyberguard-dast`, `cyberguard-api`):**
+  - **Issue:** `PinnedResolver::resolve` (`cyberguard-dast/src/client.rs:37-53`) falls back to live unvalidated `tokio::net::lookup_host` on cache miss, and keys only by hostname without port under concurrent `RwLock` writes. External runners (`run_supervised_nuclei` in `cyberguard-dast/src/nuclei.rs:27-49` and `SchemathesisRunner::run` in `cyberguard-api/src/schemathesis.rs:15-68`) do not enforce `ScopeGate`, bogon filtering, or pinned DNS, allowing DNS rebinding and redirect SSRF.
+  - **Remediation Plan:** Return an explicit error on `PinnedResolver` cache miss; pass pinned IPs and Host headers or enforce network-namespace / proxy egress filtering for external subprocess runners.
+- [ ] **Scope Gate Bypass & Bogon Filter Gaps (`cyberguard-net`):**
+  - **Issue:** Suffix matching (`cyberguard-net/src/scope.rs:183-188`) via `d.strip_prefix("*.")` drops the dot, matching unrelated collision domains (e.g. `*.example.com` matches `evilexample.com`) and is case-sensitive. `is_bogon_or_metadata` (`cyberguard-net/src/cidr.rs:105-181`) omits RFC 1918 private subnets, CGNAT (`100.64.0.0/10`), and IPv6 ULA (`fc00::/7`). `NetworkEngine::scan` validates only `effective_ports.first()` and ignores the rest; `generate_scope_hmac` omits `authorized_ports`. Bracketed IPv6 hosts (`"[::1]"`) fail `IpAddr::from_str`.
+  - **Remediation Plan:** Fix wildcard matching to require boundary dot and ASCII case-insensitivity; expand bogon filter to cover RFC 1918, CGNAT, and IPv6 ULA; validate all requested ports in `NetworkEngine::scan`; include `authorized_ports` in HMAC digest; strip bracket delimiters for IPv6 parsing.
+- [ ] **SLSA / DSSE Cryptographic Signature Verification Missing (`cyberguard-pipeline`):**
+  - **Issue:** `PipelineParser::parse_slsa_or_dsse` (`cyberguard-pipeline/src/parser.rs:69-85`) decodes `DsseEnvelope.payload` but completely ignores `envelope.signatures`, accepting forged provenance statements without cryptographic verification.
+  - **Remediation Plan:** Enforce cryptographic signature verification (ECDSA/Ed25519) on DSSE envelopes using configured trusted public keys or certificates before accepting provenance assertions.
+
+#### 2. High Audit Findings
+- [ ] **OpenAPI `$ref` & SLSA Path Traversal / Arbitrary File Read (`cyberguard-api`, `cyberguard-pipeline`):**
+  - **Issue:** In `cyberguard-api/src/parser.rs:654-667`, bare filenames cause `path.parent()` to be `""`, resulting in `canonical_dir = ""`. `canonical_target.starts_with("")` evaluates to true, bypassing directory containment for OpenAPI `$ref`. In `cyberguard-pipeline/src/engine.rs:244-258`, when `artifact_path` is `None`, `subj.name` is appended to `repo_path` without traversal checks.
+  - **Remediation Plan:** Normalize and canonicalize base directories with a fallback to `current_dir()`; strictly enforce directory containment (`canonical_target.starts_with(&base_dir)`) and reject relative path traversal components (`..`) in `subj.name`.
+- [ ] **Unbounded Parser Memory Allocations & Zip-Bomb / Decompression DoS (`cyberguard-mobile`, `cyberguard-container`, `cyberguard-mcp`):**
+  - **Issue:** `cyberguard-mobile/src/parser.rs:323-345` allocates `Vec::with_capacity` directly from untrusted `entry.compressed_size()` without upper bounds and collects unlimited entries. AXML parser (`cyberguard-mobile/src/parser.rs:815`) underflows if `chunk_size < 8`. OCI layer decompression (`cyberguard-container`) lacks total decompressed byte caps. `StdioTransport::read_message` (`cyberguard-mcp/src/transport.rs`) reads unbounded lines from stdin.
+  - **Remediation Plan:** Enforce maximum allocation ceilings (e.g. 64 MB per file, max 10,000 ZIP entries); add underflow protection in AXML chunk decoding; enforce streaming decompressed byte limits in OCI tar/gzip processing; use `.take(MAX_LINE_BYTES)` on MCP stdio lines.
+- [ ] **Symlink Traversal & Directory Containment in SAST Walker (`cyberguard-sast`):**
+  - **Issue:** `collect_source_files` (`cyberguard-sast/src/walker.rs:52-77`) does not verify symlink targets, potentially escaping the target repository root. Direct file targets bypass size and extension exclusion rules.
+  - **Remediation Plan:** Use `symlink_metadata()` to reject symlinks escaping the repository root; apply size, binary check, and exclusion filters uniformly to direct file targets.
+- [ ] **Subprocess Isolation & Environment Leaks (`cyberguard-proc`):**
+  - **Issue:** `CommandSupervisor` (`cyberguard-proc/src/supervisor.rs:12-50`) does not set `cmd.stdin(Stdio::null())`, does not default to `kill_on_drop(true)`, and inherits parent environment variables containing API tokens and cloud credentials.
+  - **Remediation Plan:** Ensure `stdin(Stdio::null())`, set `kill_on_drop(true)`, and clear or sanitize process environment variables to a minimal safe allowlist (`PATH`, `HOME`, `LANG`).
+
+#### 3. Medium & Hardening Audit Findings
+- [ ] **SAST Walker Trailing Newline Off-By-One (`cyberguard-sast`):** Correct line counting boundary condition on files with or without trailing newlines.
+- [ ] **Inline Suppression Inside String Literals / URLs (`cyberguard-sast`):** Prevent false suppressions by ignoring `# aegix:ignore` or `// aegix:ignore` when occurring inside quoted strings or comments.
+- [ ] **Cargo.lock Direct vs. Transitive Dependency Heuristic (`cyberguard-sca`):** Improve `is_direct` heuristic by resolving root package dependencies directly from `Cargo.toml`.
+- [ ] **Container Nested Layer Tarball Validation (`cyberguard-container`):** Ensure whiteout processing and nested layer tarballs undergo the same validation and byte limits.
+- [ ] **Secret Masking Redaction Length Leakage (`cyberguard-secret`):** Standardize secret masking to fixed-length masks (e.g. `****`) to avoid leaking exact secret length for short tokens.
+- [ ] **Deterministic Fingerprint Delimiter Collision (`cyberguard-sast`):** Introduce unique field delimiters in `compute_deterministic_fingerprint` to prevent cross-field collisions.
 
 ### Phase 2.1: Packaging & Universal Distribution
 - [ ] **Multi-Architecture Release Binaries:**
