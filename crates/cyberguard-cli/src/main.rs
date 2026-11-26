@@ -8,6 +8,7 @@ use cyberguard_core::config::CyberguardConfig;
 use cyberguard_core::sarif::{Message, ReportingDescriptor, SarifLevel, SarifLog, SarifResult};
 use cyberguard_core::AegixBaseline;
 use cyberguard_dast::{DastEngine, DastScanner, DastTarget, FindingSeverity};
+use cyberguard_fix::{FixEngine, FixScanOptions, RemediationEngine, SourceLanguage};
 use cyberguard_iac::{IacEngine, IacScanner};
 use cyberguard_net::{
     verify_scope_hmac, NetworkEngine, NetworkScanner, ScopeGate, DEFAULT_TOP_PORTS,
@@ -597,6 +598,26 @@ pub struct FixArgs {
     /// Perform a dry-run and print unified diffs to stdout
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Optional path to SARIF v2.1.0 telemetry file to guide remediation
+    #[arg(long, value_name = "FILE")]
+    pub sarif: Option<PathBuf>,
+
+    /// Filter specific rule IDs to remediate (comma-separated, e.g. 'CG-SQLI-001,CG-CMDI-001')
+    #[arg(long, value_delimiter = ',')]
+    pub rules: Option<Vec<String>>,
+
+    /// Target language override (python, javascript, go, rust)
+    #[arg(long)]
+    pub lang: Option<String>,
+
+    /// Output unified diff to a specified patch file
+    #[arg(short, long, value_name = "FILE")]
+    pub output_diff: Option<PathBuf>,
+
+    /// Generate eradication unit tests for eradicated vulnerabilities
+    #[arg(long, default_value_t = true)]
+    pub write_tests: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]
@@ -1849,13 +1870,124 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::Fix(args)) => {
-            println!("🛠️  Aegix AST Auto-Remediation Engine");
+            let language_override =
+                args.lang
+                    .as_deref()
+                    .and_then(|l| match l.to_ascii_lowercase().as_str() {
+                        "python" | "py" => Some(SourceLanguage::Python),
+                        "javascript" | "js" => Some(SourceLanguage::JavaScript),
+                        "typescript" | "ts" => Some(SourceLanguage::TypeScript),
+                        "go" | "golang" => Some(SourceLanguage::Go),
+                        "rust" | "rs" => Some(SourceLanguage::Rust),
+                        _ => None,
+                    });
+
+            let dry_run = args.dry_run || !args.auto;
+            let options = FixScanOptions {
+                sarif_path: args.sarif.clone(),
+                rules_filter: args.rules,
+                language_override,
+                generate_tests: args.write_tests,
+                max_file_size: 10 * 1024 * 1024,
+            };
+
+            let engine = FixEngine::new();
+            let plan = if let Some(ref sarif_path) = args.sarif {
+                let sarif_content = match std::fs::read_to_string(sarif_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading SARIF file '{}': {}", sarif_path.display(), e);
+                        std::process::exit(2);
+                    }
+                };
+                let sarif_log: SarifLog = match serde_json::from_str(&sarif_content) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Error parsing SARIF JSON: {}", e);
+                        std::process::exit(2);
+                    }
+                };
+                match engine.plan_sarif(&args.path, &sarif_log, &options).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("Remediation planning failed: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            } else {
+                match engine.plan_path(&args.path, &options).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("Remediation planning failed: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            };
+
+            println!("🛠️  Aegix AST & Autonomous Remediation Engine");
+            println!("Target: {}", plan.target_path.display());
             println!(
-                "Target: {} (auto={}, dry_run={})",
-                args.path.display(),
-                args.auto,
-                args.dry_run
+                "Vulnerabilities Detected: {}",
+                plan.total_vulnerabilities_detected
             );
+            println!("Surgical Patches Synthesized: {}", plan.patches.len());
+            println!("Unfixable Findings: {}", plan.unfixable_count);
+
+            if let Some(ref diff_path) = args.output_diff {
+                let mut full_diff = String::new();
+                for d in &plan.diffs {
+                    full_diff.push_str(&d.raw_diff);
+                    full_diff.push('\n');
+                }
+                if let Err(e) = std::fs::write(diff_path, &full_diff) {
+                    eprintln!("Error saving diff file '{}': {}", diff_path.display(), e);
+                    std::process::exit(2);
+                }
+                println!("💾 Unified diff saved to {}", diff_path.display());
+            }
+
+            if dry_run {
+                if !plan.diffs.is_empty() {
+                    println!("\n📋 Planned Unified Diffs (Dry-Run Preview):");
+                    for diff in &plan.diffs {
+                        println!("{}", diff.raw_diff);
+                    }
+                }
+                if !args.auto {
+                    println!("\n💡 Run with '--auto' to atomically apply these patches to disk.");
+                }
+            } else {
+                match engine.apply_plan(&plan).await {
+                    Ok(res) => {
+                        println!(
+                            "\n✨ Applied {} patch(es) across {} file(s) in {}ms.",
+                            res.applied_patches,
+                            res.modified_files.len(),
+                            res.duration_ms
+                        );
+                        for f in &res.modified_files {
+                            println!("   - Modified: {}", f.display());
+                        }
+                        if !res.written_test_files.is_empty() {
+                            println!(
+                                "🧪 Generated {} autonomous eradication unit test file(s):",
+                                res.written_test_files.len()
+                            );
+                            for t in &res.written_test_files {
+                                println!("   - Test: {}", t.display());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to apply remediation patches: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            }
+
+            if plan.unfixable_count > 0 {
+                std::process::exit(1);
+            }
         }
         Some(Commands::Mcp(args)) => {
             if let Some(port) = args.port {

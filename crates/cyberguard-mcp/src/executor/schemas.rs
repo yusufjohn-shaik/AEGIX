@@ -268,5 +268,38 @@ pub fn get_tool_catalog() -> Vec<Tool> {
                 "required": ["rule_id"]
             }),
         },
+        Tool {
+            name: "aegix_fix".to_string(),
+            description: Some(
+                "Deterministic AST & Autonomous Remediation: synthesizes surgical patches, POSIX unified diffs, and eradication unit tests for SQLi, Command Injection, Path Traversal, and Leaked Secrets across Python, JS/TS, Go, and Rust.".to_string(),
+            ),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Target project directory or source code file to remediate (defaults to current directory '.')"
+                    },
+                    "sarif_path": {
+                        "type": "string",
+                        "description": "Optional path to a SARIF report file containing findings to remediate"
+                    },
+                    "auto_apply": {
+                        "type": "boolean",
+                        "description": "Whether to atomically apply surgical patches to source files on disk (default: false, dry-run only)"
+                    },
+                    "rules": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional list of rule IDs to filter remediation (e.g. ['CG-SQLI-001', 'CG-CMDI-001'])"
+                    },
+                    "generate_tests": {
+                        "type": "boolean",
+                        "description": "Whether to generate autonomous eradication regression unit tests (default: true)"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
     ]
 }

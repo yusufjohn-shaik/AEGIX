@@ -13,7 +13,7 @@ async fn test_list_tools_schema_catalog() {
     let facade = AegixEngineFacade::new();
     let tools = facade.list_tools();
 
-    assert_eq!(tools.len(), 11);
+    assert_eq!(tools.len(), 12);
 
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     assert!(tool_names.contains(&"aegix_scan"));
@@ -27,6 +27,7 @@ async fn test_list_tools_schema_catalog() {
     assert!(tool_names.contains(&"aegix_graph"));
     assert!(tool_names.contains(&"aegix_risk"));
     assert!(tool_names.contains(&"aegix_explain"));
+    assert!(tool_names.contains(&"aegix_fix"));
 
     for tool in &tools {
         assert!(tool.description.is_some());
@@ -197,5 +198,75 @@ def handler(user_input):
     }
 
     // Clean up
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_call_aegix_fix_dry_run_and_auto() {
+    let facade = AegixEngineFacade::new();
+    let temp_dir = std::env::temp_dir().join(format!("aegix_mcp_fix_test_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create test dir");
+
+    let py_file = temp_dir.join("vuln.py");
+    let original_code = "def get_user(db, user_id):\n    query = \"SELECT * FROM users WHERE id = '\" + user_id + \"'\"\n    return db.execute(query)\n";
+    fs::write(&py_file, original_code).expect("write vuln file");
+
+    // 1. Dry run
+    let args_dry = json!({
+        "path": py_file.to_str().unwrap(),
+        "auto_apply": false,
+        "generate_tests": true
+    })
+    .as_object()
+    .cloned();
+
+    let res_dry = facade
+        .call_tool("aegix_fix", args_dry)
+        .await
+        .expect("fix call dry-run");
+    assert!(!res_dry.is_error);
+    match &res_dry.content[0] {
+        ToolContent::Text { text } => {
+            assert!(text.contains("Aegix AST Remediation Report"));
+            assert!(text.contains("Surgical Patches Planned"));
+            assert!(text.contains("Proposed Unified Diffs"));
+        }
+    }
+
+    // Verify file content untouched in dry run
+    let content_after_dry = fs::read_to_string(&py_file).expect("read file");
+    assert_eq!(content_after_dry, original_code);
+
+    // 2. Auto apply
+    let args_auto = json!({
+        "path": py_file.to_str().unwrap(),
+        "auto_apply": true,
+        "generate_tests": false
+    })
+    .as_object()
+    .cloned();
+
+    let res_auto = facade
+        .call_tool("aegix_fix", args_auto)
+        .await
+        .expect("fix call auto");
+    assert!(!res_auto.is_error);
+    match &res_auto.content[0] {
+        ToolContent::Text { text } => {
+            assert!(text.contains("Successfully applied 1 patch(es)"));
+            assert!(text.contains("Modified Files"));
+        }
+    }
+
+    // Verify file content modified
+    let content_after_auto = fs::read_to_string(&py_file).expect("read file");
+    assert_ne!(content_after_auto, original_code);
+    assert!(
+        content_after_auto.contains("params")
+            || content_after_auto.contains("%s")
+            || content_after_auto.contains("?")
+    );
+
     let _ = fs::remove_dir_all(&temp_dir);
 }

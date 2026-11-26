@@ -28,6 +28,7 @@ cyberguard-threat = { workspace = true }
 cyberguard-mcp = { workspace = true }
 cyberguard-graph = { workspace = true }
 cyberguard-risk = { workspace = true }
+cyberguard-fix = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

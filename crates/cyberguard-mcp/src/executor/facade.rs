@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use cyberguard_container::{ContainerAuditReport, ContainerEngine, ContainerScanner};
 use cyberguard_core::baseline::AegixBaseline;
 use cyberguard_core::sarif::{SarifLevel, SarifLog, SarifResult};
+use cyberguard_fix::{FixEngine, FixScanOptions, RemediationEngine};
 use cyberguard_graph::{
     AttackGraph, ChokePointAnalyzer, GraphCorrelator, GraphExporter, JsonExporter, MermaidExporter,
     PathFinder, SarifExporter, StandardChokePointAnalyzer, StandardGraphCorrelator,
@@ -913,6 +914,143 @@ USER appuser
             }
         }
     }
+
+    /// Execute the Deterministic AST & Autonomous Remediation Engine (`cyberguard-fix`).
+    async fn run_aegix_fix(
+        &self,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> CallToolResult {
+        let path = match Self::extract_path(&args) {
+            Ok(p) => p,
+            Err(fail) => return fail,
+        };
+
+        let canonical = match std::fs::canonicalize(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                return CallToolResult::failure(format!(
+                    "Failed to resolve target path '{}': {}",
+                    path.display(),
+                    e
+                ))
+            }
+        };
+
+        let auto_apply = args
+            .as_ref()
+            .and_then(|m| m.get("auto_apply"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let generate_tests = args
+            .as_ref()
+            .and_then(|m| m.get("generate_tests"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let rules_filter = args
+            .as_ref()
+            .and_then(|m| m.get("rules"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|val| val.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<String>>()
+            });
+
+        let sarif_path = args
+            .as_ref()
+            .and_then(|m| m.get("sarif_path"))
+            .and_then(|v| v.as_str())
+            .map(PathBuf::from);
+
+        let options = FixScanOptions {
+            sarif_path: sarif_path.clone(),
+            rules_filter,
+            language_override: None,
+            generate_tests,
+            max_file_size: 10 * 1024 * 1024,
+        };
+
+        let engine = FixEngine::new();
+        let plan_res = if let Some(ref sp) = sarif_path {
+            match std::fs::read_to_string(sp) {
+                Ok(content) => match serde_json::from_str::<SarifLog>(&content) {
+                    Ok(sarif) => engine.plan_sarif(&canonical, &sarif, &options).await,
+                    Err(e) => {
+                        return CallToolResult::failure(format!("Malformed SARIF file: {}", e))
+                    }
+                },
+                Err(e) => {
+                    return CallToolResult::failure(format!("Failed to read SARIF file: {}", e))
+                }
+            }
+        } else {
+            engine.plan_path(&canonical, &options).await
+        };
+
+        let plan = match plan_res {
+            Ok(p) => p,
+            Err(e) => {
+                return CallToolResult::failure(format!("Remediation planning failed: {}", e))
+            }
+        };
+
+        let mut out = String::new();
+        out.push_str(&format!(
+            "### 🛠️ Aegix AST Remediation Report: `{}`\n\n",
+            canonical.display()
+        ));
+        out.push_str(&format!(
+            "- **Vulnerabilities Detected:** {}\n- **Surgical Patches Planned:** {}\n- **Unfixable Findings:** {}\n- **Eradication Tests Planned:** {}\n\n",
+            plan.total_vulnerabilities_detected,
+            plan.patches.len(),
+            plan.unfixable_count,
+            plan.tests.len()
+        ));
+
+        if plan.patches.is_empty() {
+            out.push_str("✅ **No remediable vulnerabilities detected or no patches required.**\n");
+            return CallToolResult::success(out);
+        }
+
+        if auto_apply {
+            match engine.apply_plan(&plan).await {
+                Ok(res) => {
+                    out.push_str(&format!(
+                        "✨ **Successfully applied {} patch(es) across {} file(s)** in {}ms.\n\n",
+                        res.applied_patches,
+                        res.modified_files.len(),
+                        res.duration_ms
+                    ));
+                    out.push_str("#### Modified Files\n");
+                    for f in &res.modified_files {
+                        out.push_str(&format!("- `{}`\n", f.display()));
+                    }
+                    if !res.written_test_files.is_empty() {
+                        out.push_str("\n#### Generated Eradication Tests\n");
+                        for t in &res.written_test_files {
+                            out.push_str(&format!("- `{}`\n", t.display()));
+                        }
+                    }
+                }
+                Err(e) => {
+                    return CallToolResult::failure(format!(
+                        "Failed to apply surgical patches: {}",
+                        e
+                    ))
+                }
+            }
+        } else {
+            out.push_str("#### Proposed Unified Diffs (Dry-Run Preview)\n\n");
+            for diff in &plan.diffs {
+                out.push_str(&format!("```diff\n{}\n```\n\n", diff.raw_diff.trim()));
+            }
+            out.push_str("> 💡 *Dry-run mode active. Set `auto_apply: true` to atomically write these patches to disk.*\n");
+        }
+
+        CallToolResult::success(out)
+    }
 }
 
 #[async_trait]
@@ -937,6 +1075,7 @@ impl ToolExecutor for AegixEngineFacade {
             "aegix_threat" => self.run_aegix_threat(arguments).await,
             "aegix_graph" => self.run_aegix_graph(arguments).await,
             "aegix_risk" => self.run_aegix_risk(arguments).await,
+            "aegix_fix" => self.run_aegix_fix(arguments).await,
             "aegix_explain" => self.run_aegix_explain(arguments),
             unknown => CallToolResult::failure(format!("Unknown Aegix tool: '{}'", unknown)),
         };
