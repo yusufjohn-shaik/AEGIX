@@ -566,6 +566,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyberguard-risk"
+version = "0.9.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "cyberguard-core",
+ "cyberguard-proc",
+ "cyberguard-sast",
+ "cyberguard-sca",
+ "regex",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "cyberguard-sast"
 version = "0.9.0"
 dependencies = [

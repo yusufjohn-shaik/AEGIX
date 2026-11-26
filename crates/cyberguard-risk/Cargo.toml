@@ -1,0 +1,25 @@
+[package]
+name = "cyberguard-risk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Tri-Factor Prioritizer (CVSS x EPSS x Reachability) and Rust call-graph analyzer for Aegix"
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-proc = { workspace = true }
+cyberguard-sast = { workspace = true }
+cyberguard-sca = { workspace = true }
+
+async-trait = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+semver = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+walkdir = { workspace = true }
