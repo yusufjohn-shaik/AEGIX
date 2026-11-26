@@ -59,10 +59,12 @@ These items address core credibility, developer adoption primitives, parser robu
 - [x] **Module 18: Tri-Factor Prioritizer (`aegix-risk` / `cyberguard-risk`):**
   - Implemented Cargo dependency graph resolution (`cargo metadata` with scrubbed host-RCE defenses + pure-Rust `Cargo.toml`/`Cargo.lock` fallback) and zero-dependency deterministic Rust source call-graph reachability (`VerifiedReachable` through `Unreachable`).
   - Computes basis-point mathematical risk $\text{Score} = \text{round}_2(\text{CVSS} \times \text{EPSS} \times \text{Reachability})$ with calibrated priority tiers, offline EPSS catalog integration, SARIF `codeFlows`, CLI (`aegix risk`), and MCP (`aegix_risk`) support.
-- [ ] **Module 19: Tree-sitter AST & Autonomous Remediation (`aegix-fix`):**
-  - Transition SAST from pure regex to Tree-sitter AST parsing for Python, JavaScript/TypeScript, and Go.
-  - Implement intra-procedural taint tracking (Sources $\to$ Sanitizers $\to$ Sinks).
-  - Apply surgical AST patches and auto-generate unit tests verifying eradication.
+- [x] **Module 19: Deterministic AST & Autonomous Remediation (`aegix-fix` / `cyberguard-fix`):**
+  - Implemented pure-Rust, zero-dependency multi-language AST state machines and tokenizers for Python, JavaScript/TypeScript, Go, and Rust without external C toolchains or unsafe code.
+  - Intra-procedural def-use taint flow analysis tracking untrusted Sources (HTTP params, headers, CLI args, env vars) through Propagators to Sinks (SQL execution, OS command injection, path traversal, hardcoded secrets).
+  - Context-aware surgical patch synthesis with parameterized query drivers (`?`, `%s`, `$1`), safe command argument arrays, path containment guards, and env var extraction.
+  - Reverse line-offset patch application, POSIX unified diff generation (`diff -u`) with hunk coalescing, and autonomous eradication unit test generation for pytest, Jest, Go testing, and cargo test.
+  - Full CLI (`aegix fix`) and MCP (`aegix_fix`) tool integration with `--dry-run`, `--auto`, `--sarif`, `--rules`, and `--output-diff` support.
 
 ### Phase 1.6: Developer Interfaces (Modules 20–21)
 - [ ] **Module 20: TUI Dashboard & Reporting (`aegix-ui`):** `ratatui` terminal interface and executive PDF/HTML report generators.
