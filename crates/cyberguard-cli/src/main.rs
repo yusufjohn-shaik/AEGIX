@@ -81,6 +81,9 @@ pub enum Commands {
     /// Trace multi-layer attack paths and correlate findings via in-memory DAG
     Trace(TraceArgs),
 
+    /// Prioritize vulnerabilities via Tri-Factor score (CVSS x EPSS x Reachability) and Rust reachability
+    Risk(RiskArgs),
+
     /// Synthesize and apply syntax-preserving AST code fixes
     Fix(FixArgs),
 
@@ -531,6 +534,55 @@ pub struct TraceArgs {
 }
 
 impl Eq for TraceArgs {}
+
+#[derive(Args, Debug, PartialEq)]
+pub struct RiskArgs {
+    /// Target Cargo workspace directory or SARIF report file
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+
+    /// Optional path to SARIF v2.1.0 telemetry file or '-' for STDIN
+    #[arg(long, value_name = "FILE")]
+    pub input: Option<PathBuf>,
+
+    /// Output report format: terminal, sarif, json
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+    pub format: OutputFormat,
+
+    /// Optional output file to write the prioritized results
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Minimum Tri-Factor score threshold to display (0.0 to 10.0)
+    #[arg(long, default_value_t = 0.0)]
+    pub min_score: f64,
+
+    /// Minimum Tri-Factor score among non-suppressed findings to trigger exit code 1
+    #[arg(long, default_value_t = 2.5)]
+    pub fail_on: f64,
+
+    /// Include unreachable/suppressed findings in output
+    #[arg(long, default_value_t = false)]
+    pub show_suppressed: bool,
+
+    /// Skip spawning `cargo metadata` and use pure-Rust Cargo.toml/Cargo.lock fallback
+    #[arg(long, default_value_t = false)]
+    pub no_cargo_metadata: bool,
+
+    /// Optional offline JSON EPSS database override file
+    #[arg(long, value_name = "FILE")]
+    pub epss_db: Option<PathBuf>,
+
+    /// Path to baseline snapshot file to suppress known findings
+    #[arg(long, value_name = "FILE")]
+    pub baseline: Option<PathBuf>,
+
+    /// Save discovered findings as a new baseline snapshot file
+    #[arg(long, value_name = "FILE")]
+    pub save_baseline: Option<PathBuf>,
+}
+
+impl Eq for RiskArgs {}
 
 #[derive(Args, Debug, PartialEq, Eq)]
 pub struct FixArgs {
@@ -1625,6 +1677,174 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or(0.0);
 
             if max_risk >= args.fail_on {
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Risk(args)) => {
+            use cyberguard_core::baseline::BaselineFindingEntry;
+            use cyberguard_risk::{
+                JsonExporter as RiskJsonExporter, RiskEngine, RiskExporter, RiskPrioritizer,
+                RiskScanOptions, RiskTier, SarifExporter as RiskSarifExporter,
+                TerminalExporter as RiskTerminalExporter,
+            };
+            use std::io::Read;
+
+            let options = RiskScanOptions {
+                min_score: if args.min_score.is_finite() {
+                    args.min_score
+                } else {
+                    0.0
+                },
+                show_suppressed: args.show_suppressed,
+                use_cargo_metadata: !args.no_cargo_metadata,
+                external_epss_db: args.epss_db.clone(),
+            };
+
+            let sarif_opt: Option<SarifLog> = if let Some(ref input_path) = args.input {
+                let content = if input_path == Path::new("-") {
+                    let mut stdin = std::io::stdin();
+                    let mut buffer = String::new();
+                    if let Err(e) = stdin.read_to_string(&mut buffer) {
+                        eprintln!("Error reading STDIN telemetry: {}", e);
+                        std::process::exit(2);
+                    }
+                    buffer
+                } else if input_path.is_file() {
+                    match std::fs::read_to_string(input_path) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("Error reading SARIF file '{}': {}", input_path.display(), e);
+                            std::process::exit(2);
+                        }
+                    }
+                } else {
+                    eprintln!("Input SARIF file not found: {}", input_path.display());
+                    std::process::exit(2);
+                };
+
+                match serde_json::from_str(&content) {
+                    Ok(log) => Some(log),
+                    Err(e) => {
+                        eprintln!("Malformed SARIF telemetry: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            } else if args.path.is_file()
+                && args
+                    .path
+                    .extension()
+                    .is_some_and(|ext| ext == "json" || ext == "sarif")
+            {
+                let content = match std::fs::read_to_string(&args.path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading SARIF file '{}': {}", args.path.display(), e);
+                        std::process::exit(2);
+                    }
+                };
+                match serde_json::from_str(&content) {
+                    Ok(log) => Some(log),
+                    Err(e) => {
+                        eprintln!("Malformed SARIF telemetry: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            } else {
+                None
+            };
+
+            let engine = RiskEngine::new();
+            let report_res = if let Some(ref sarif) = sarif_opt {
+                let target_root = if args.path.is_file() {
+                    args.path.parent().unwrap_or(Path::new("."))
+                } else {
+                    args.path.as_path()
+                };
+                engine.prioritize_sarif(target_root, sarif, &options).await
+            } else {
+                engine.prioritize_path(&args.path, &options).await
+            };
+
+            let mut report = match report_res {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Tri-Factor risk analysis error: {}", e);
+                    std::process::exit(2);
+                }
+            };
+
+            if let Some(ref base_path) = args.baseline {
+                if base_path.exists() {
+                    match AegixBaseline::load_from_path(base_path) {
+                        Ok(baseline) => {
+                            report.findings.retain(|f| !baseline.contains(&f.id));
+                            report.recompute_counts();
+                        }
+                        Err(e) => {
+                            eprintln!("Error reading baseline '{}': {}", base_path.display(), e);
+                            std::process::exit(2);
+                        }
+                    }
+                }
+            }
+
+            if let Some(ref save_path) = args.save_baseline {
+                let mut base = AegixBaseline::new();
+                for f in &report.findings {
+                    base.fingerprints.insert(f.id.clone());
+                    base.findings.push(BaselineFindingEntry {
+                        rule_id: f.rule_id.clone(),
+                        fingerprint: f.id.clone(),
+                        location: f.file_path.clone(),
+                        message: Some(f.summary.clone()),
+                    });
+                }
+                base.total_findings = base.fingerprints.len();
+                if let Err(e) = base.save_to_path(save_path) {
+                    eprintln!("Error writing baseline '{}': {}", save_path.display(), e);
+                    std::process::exit(2);
+                }
+            }
+
+            let output_res = match args.format {
+                OutputFormat::Terminal => {
+                    RiskTerminalExporter::new(args.output.is_none()).export(&report)
+                }
+                OutputFormat::Json => RiskJsonExporter::new().export(&report),
+                OutputFormat::Sarif => RiskSarifExporter::new().export(&report),
+            };
+
+            let output_str = match output_res {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Risk report formatting error: {}", e);
+                    std::process::exit(2);
+                }
+            };
+
+            if let Some(ref out_path) = args.output {
+                if let Err(e) = std::fs::write(out_path, &output_str) {
+                    eprintln!("Error writing output file '{}': {}", out_path.display(), e);
+                    std::process::exit(2);
+                }
+                println!("Tri-Factor risk report written to {}", out_path.display());
+            } else {
+                print!("{}", output_str);
+            }
+
+            let fail_on_bps = if args.fail_on.is_finite() && args.fail_on >= 0.0 {
+                (args.fail_on * 100.0).round() as u32
+            } else {
+                u32::MAX
+            };
+
+            let breach = report
+                .findings
+                .iter()
+                .filter(|f| f.breakdown.tier != RiskTier::Suppressed)
+                .any(|f| f.breakdown.score_bps >= fail_on_bps);
+
+            if breach {
                 std::process::exit(1);
             }
         }

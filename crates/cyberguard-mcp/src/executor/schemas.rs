@@ -217,6 +217,42 @@ pub fn get_tool_catalog() -> Vec<Tool> {
             }),
         },
         Tool {
+            name: "aegix_risk".to_string(),
+            description: Some(
+                "Tri-Factor Prioritizer (CVSS x EPSS x Reachability) computing static Rust call-graph reachability from Cargo workspaces and prioritizing multi-engine SARIF telemetry.".to_string(),
+            ),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Target Cargo workspace/project directory or SARIF report file"
+                    },
+                    "min_score": {
+                        "type": "number",
+                        "description": "Minimum Tri-Factor score threshold to return (0.0 to 10.0, default: 0.0)"
+                    },
+                    "show_suppressed": {
+                        "type": "boolean",
+                        "description": "Include unreachable/suppressed findings in output (default: false)"
+                    },
+                    "no_cargo_metadata": {
+                        "type": "boolean",
+                        "description": "Skip spawning `cargo metadata` and use pure-Rust Cargo.toml/Cargo.lock fallback (default: false)"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output format: 'markdown' or 'json' (default: 'markdown')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of prioritized findings to return (default: 50)"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
+        Tool {
             name: "aegix_explain".to_string(),
             description: Some(
                 "Provides in-depth technical explanation, vulnerability impact analysis, CWE references, and syntax-preserving remediation guidance for an Aegix rule ID.".to_string(),

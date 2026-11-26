@@ -17,6 +17,7 @@ cyberguard-pipeline = { workspace = true }
 cyberguard-mobile = { workspace = true }
 cyberguard-threat = { workspace = true }
 cyberguard-graph = { workspace = true }
+cyberguard-risk = { workspace = true }
 
 tokio = { workspace = true }
 serde = { workspace = true }

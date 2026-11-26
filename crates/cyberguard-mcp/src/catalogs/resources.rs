@@ -156,6 +156,8 @@ impl AegixResourceCatalog {
                 "cyberguard-mobile",
                 "cyberguard-container",
                 "cyberguard-threat",
+                "cyberguard-graph",
+                "cyberguard-risk",
                 "cyberguard-core"
             ]
         });

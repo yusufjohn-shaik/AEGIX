@@ -21,6 +21,10 @@ use cyberguard_mobile::traits::MobileScanner;
 use cyberguard_mobile::MobileEngine;
 use cyberguard_pipeline::traits::PipelineScanner;
 use cyberguard_pipeline::PipelineEngine;
+use cyberguard_risk::{
+    JsonExporter as RiskJsonExporter, RiskEngine, RiskExporter, RiskPrioritizer, RiskScanOptions,
+    TerminalExporter as RiskTerminalExporter,
+};
 use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
 use cyberguard_sca::{ScaAnalyzer, ScaEngine};
 use cyberguard_secret::{SecretEngine, SecretScanner};
@@ -806,6 +810,109 @@ USER appuser
             }
         }
     }
+
+    /// Execute the Tri-Factor Prioritizer (`cyberguard-risk`) on a workspace or SARIF file.
+    async fn run_aegix_risk(
+        &self,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> CallToolResult {
+        let path = match Self::extract_path(&args) {
+            Ok(p) => p,
+            Err(fail) => return fail,
+        };
+
+        // Confine relative traversal and verify canonical path
+        let canonical = match std::fs::canonicalize(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                return CallToolResult::failure(format!(
+                    "Failed to resolve target path '{}': {}",
+                    path.display(),
+                    e
+                ))
+            }
+        };
+
+        let min_score = args
+            .as_ref()
+            .and_then(|m| m.get("min_score"))
+            .and_then(|v| v.as_f64())
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0);
+
+        let show_suppressed = args
+            .as_ref()
+            .and_then(|m| m.get("show_suppressed"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let no_cargo_metadata = args
+            .as_ref()
+            .and_then(|m| m.get("no_cargo_metadata"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let limit = Self::extract_limit(&args);
+        let format_choice = args
+            .as_ref()
+            .and_then(|m| m.get("format"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown");
+
+        let options = RiskScanOptions {
+            min_score,
+            show_suppressed,
+            use_cargo_metadata: !no_cargo_metadata,
+            external_epss_db: None,
+        };
+
+        let engine = RiskEngine::new();
+        let report_res = if canonical.is_file()
+            && canonical
+                .extension()
+                .is_some_and(|ext| ext == "json" || ext == "sarif")
+        {
+            match std::fs::read_to_string(&canonical) {
+                Ok(content) => match serde_json::from_str::<SarifLog>(&content) {
+                    Ok(sarif) => {
+                        let parent = canonical.parent().unwrap_or(&canonical);
+                        engine.prioritize_sarif(parent, &sarif, &options).await
+                    }
+                    Err(e) => {
+                        return CallToolResult::failure(format!("Malformed SARIF file: {}", e))
+                    }
+                },
+                Err(e) => {
+                    return CallToolResult::failure(format!("Failed to read SARIF file: {}", e))
+                }
+            }
+        } else {
+            engine.prioritize_path(&canonical, &options).await
+        };
+
+        let mut report = match report_res {
+            Ok(r) => r,
+            Err(e) => return CallToolResult::failure(format!("Tri-Factor analysis failed: {}", e)),
+        };
+
+        if report.findings.len() > limit {
+            report.findings.truncate(limit);
+        }
+
+        if format_choice == "json" {
+            let exporter = RiskJsonExporter::new();
+            match exporter.export(&report) {
+                Ok(rendered) => CallToolResult::success(rendered),
+                Err(e) => CallToolResult::failure(format!("JSON export error: {}", e)),
+            }
+        } else {
+            let exporter = RiskTerminalExporter::new(false);
+            match exporter.export(&report) {
+                Ok(rendered) => CallToolResult::success(rendered),
+                Err(e) => CallToolResult::failure(format!("Terminal export error: {}", e)),
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -829,6 +936,7 @@ impl ToolExecutor for AegixEngineFacade {
             "aegix_mobile" => self.run_aegix_mobile(arguments).await,
             "aegix_threat" => self.run_aegix_threat(arguments).await,
             "aegix_graph" => self.run_aegix_graph(arguments).await,
+            "aegix_risk" => self.run_aegix_risk(arguments).await,
             "aegix_explain" => self.run_aegix_explain(arguments),
             unknown => CallToolResult::failure(format!("Unknown Aegix tool: '{}'", unknown)),
         };
