@@ -1,19 +1,23 @@
 #![deny(unsafe_code)]
 
 pub mod diff;
+pub mod engine;
 pub mod error;
 pub mod models;
 pub mod parser;
 pub mod synthesizer;
 pub mod taint;
+pub mod test_gen;
 pub mod traits;
 
 pub use diff::{apply_patches_to_content, generate_unified_diff};
+pub use engine::FixEngine;
 pub use error::FixError;
 pub use models::*;
 pub use parser::MultiLanguageAstParser;
 pub use synthesizer::DefaultPatchSynthesizer;
 pub use taint::DefaultTaintAnalyzer;
+pub use test_gen::DefaultTestGenerator;
 pub use traits::*;
 
 #[cfg(test)]
@@ -265,5 +269,51 @@ def run_query(user_id):
         assert!(diff.raw_diff.contains("+++ b/db.py"));
         assert!(diff.raw_diff.contains("-API_KEY = "));
         assert!(diff.raw_diff.contains("+API_KEY = os.environ.get"));
+    }
+
+    #[tokio::test]
+    async fn test_fix_engine_planning_and_test_generation() {
+        let dir = std::env::temp_dir().join(format!("aegix_fix_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let py_file = dir.join("vulnerable.py");
+        let code = r#"import sqlite3
+
+API_KEY = "sk_live_1234567890abcdef"
+
+def query_user(uid):
+    cursor.execute(f"SELECT * FROM users WHERE id = '{uid}'")
+"#;
+        std::fs::write(&py_file, code).expect("write file");
+
+        let engine = FixEngine::new();
+        let options = FixScanOptions {
+            generate_tests: true,
+            ..Default::default()
+        };
+
+        let plan = engine.plan_path(&dir, &options).await.expect("plan path");
+
+        assert_eq!(plan.total_vulnerabilities_detected, 2);
+        assert_eq!(plan.patches.len(), 2);
+        assert_eq!(plan.diffs.len(), 1);
+        assert_eq!(plan.tests.len(), 2);
+
+        assert!(plan.diffs[0].raw_diff.contains("--- a/"));
+        assert!(plan.diffs[0].raw_diff.contains("+++ b/"));
+
+        // Dry-run didn't modify file
+        let read_back = std::fs::read_to_string(&py_file).expect("read");
+        assert_eq!(read_back, code);
+
+        // Now apply plan
+        let result = engine.apply_plan(&plan).await.expect("apply plan");
+        assert_eq!(result.applied_patches, 2);
+        assert_eq!(result.modified_files.len(), 1);
+
+        let modified_read_back = std::fs::read_to_string(&py_file).expect("read modified");
+        assert!(modified_read_back.contains("os.environ.get(\"API_KEY\""));
+        assert!(modified_read_back.contains("WHERE id = ?\", (uid,)"));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
