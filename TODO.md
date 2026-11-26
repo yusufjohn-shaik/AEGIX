@@ -56,9 +56,9 @@ These items address core credibility, developer adoption primitives, parser robu
 ### Phase 1.5: The Autonomous Differentiators (Modules 16–19)
 - [x] **Module 16: Model Context Protocol (MCP) Server (`aegix-mcp` / `cyberguard-mcp`):** Native JSON-RPC 2.0 stdio MCP server enabling Cursor, Claude Code, Antigravity, and AI coding agents to invoke scans, query rules and threat models, and receive AST fix prompts.
 - [x] **Module 17: Attack Path Engine (`aegix-graph` / `cyberguard-graph`):** In-memory Directed Graph (DG) connecting external entrypoints $\to$ services $\to$ reachable vulnerabilities $\to$ leaked secrets $\to$ assets $\to$ privilege escalation $\to$ terminal impacts, compounding path risk scoring, cut-vertex choke point isolation, and multi-format exporters (Terminal, Mermaid, JSON, SARIF CodeFlow).
-- [ ] **Module 18: Tri-Factor Prioritizer (`aegix-risk`):**
-  - Implement real single-language reachability analysis (Rust call-graph via `cargo metadata` first).
-  - Compute mathematical risk: $\text{Score} = \text{CVSS} \times \text{EPSS} \times \text{Reachability}$.
+- [x] **Module 18: Tri-Factor Prioritizer (`aegix-risk` / `cyberguard-risk`):**
+  - Implemented Cargo dependency graph resolution (`cargo metadata` with scrubbed host-RCE defenses + pure-Rust `Cargo.toml`/`Cargo.lock` fallback) and zero-dependency deterministic Rust source call-graph reachability (`VerifiedReachable` through `Unreachable`).
+  - Computes basis-point mathematical risk $\text{Score} = \text{round}_2(\text{CVSS} \times \text{EPSS} \times \text{Reachability})$ with calibrated priority tiers, offline EPSS catalog integration, SARIF `codeFlows`, CLI (`aegix risk`), and MCP (`aegix_risk`) support.
 - [ ] **Module 19: Tree-sitter AST & Autonomous Remediation (`aegix-fix`):**
   - Transition SAST from pure regex to Tree-sitter AST parsing for Python, JavaScript/TypeScript, and Go.
   - Implement intra-procedural taint tracking (Sources $\to$ Sanitizers $\to$ Sinks).
