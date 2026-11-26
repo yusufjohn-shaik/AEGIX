@@ -323,6 +323,7 @@ fn scan_hardcoded_secrets(ast: &ParsedSourceFile) -> Vec<TaintFlowPath> {
                                 is_sanitized: false,
                                 sanitizer_kind: None,
                             });
+                            break;
                         }
                     }
                 }

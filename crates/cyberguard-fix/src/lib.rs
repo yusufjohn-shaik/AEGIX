@@ -1,14 +1,18 @@
 #![deny(unsafe_code)]
 
+pub mod diff;
 pub mod error;
 pub mod models;
 pub mod parser;
+pub mod synthesizer;
 pub mod taint;
 pub mod traits;
 
+pub use diff::{apply_patches_to_content, generate_unified_diff};
 pub use error::FixError;
 pub use models::*;
 pub use parser::MultiLanguageAstParser;
+pub use synthesizer::DefaultPatchSynthesizer;
 pub use taint::DefaultTaintAnalyzer;
 pub use traits::*;
 
@@ -217,5 +221,49 @@ pub fn spawn_shell(cmd_arg: &str) {
         assert!(flows
             .iter()
             .any(|f| f.sink_kind == TaintSinkKind::CommandExecution));
+    }
+
+    #[test]
+    fn test_surgical_patch_synthesis_and_application() {
+        let code = r#"import sqlite3
+
+API_KEY = "sk_live_94819a8f4c19284ba71e"
+
+def run_query(user_id):
+    cursor.execute(f"SELECT * FROM users WHERE id = '{user_id}'")
+"#;
+        let parser = MultiLanguageAstParser::new();
+        let parsed = parser
+            .parse(&PathBuf::from("db.py"), code, SourceLanguage::Python)
+            .expect("parse");
+
+        let analyzer = DefaultTaintAnalyzer::new();
+        let flows = analyzer.analyze(&parsed).expect("taint");
+
+        let synthesizer = DefaultPatchSynthesizer::new();
+        let mut patches = Vec::new();
+        for flow in &flows {
+            if let Some(patch) = synthesizer.synthesize(flow, &parsed).expect("synthesize") {
+                patches.push(patch);
+            }
+        }
+
+        assert_eq!(patches.len(), 2);
+
+        // Apply patches bottom-to-top
+        let lines: Vec<String> = code.lines().map(|s| s.to_string()).collect();
+        let modified =
+            apply_patches_to_content(&lines, &mut patches, SourceLanguage::Python).expect("apply");
+
+        assert!(modified.contains("os.environ.get(\"API_KEY\""));
+        assert!(modified.contains("WHERE id = ?\", (user_id,)"));
+
+        // Generate unified diff
+        let diff = generate_unified_diff(code, &modified, &PathBuf::from("db.py"));
+        assert!(!diff.chunks.is_empty());
+        assert!(diff.raw_diff.contains("--- a/db.py"));
+        assert!(diff.raw_diff.contains("+++ b/db.py"));
+        assert!(diff.raw_diff.contains("-API_KEY = "));
+        assert!(diff.raw_diff.contains("+API_KEY = os.environ.get"));
     }
 }
