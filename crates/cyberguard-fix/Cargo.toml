@@ -1,0 +1,24 @@
+[package]
+name = "cyberguard-fix"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic AST analysis, intra-procedural taint tracking, and autonomous vulnerability remediation engine for Aegix"
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-proc = { workspace = true }
+cyberguard-sast = { workspace = true }
+cyberguard-sca = { workspace = true }
+cyberguard-risk = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+walkdir = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
