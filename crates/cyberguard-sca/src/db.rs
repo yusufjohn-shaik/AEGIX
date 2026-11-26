@@ -11,6 +11,11 @@ impl VulnerabilityDatabase {
         Self { advisories }
     }
 
+    /// Returns a slice of all advisories loaded in this database.
+    pub fn advisories(&self) -> &[Vulnerability] {
+        &self.advisories
+    }
+
     /// Initializes the embedded catalog of known high-severity open-source vulnerabilities.
     pub fn embedded() -> Self {
         let advisories = vec![

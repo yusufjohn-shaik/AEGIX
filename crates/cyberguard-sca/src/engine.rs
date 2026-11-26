@@ -81,6 +81,25 @@ impl ScaEngine {
                 finding.reachability,
             );
 
+            // Attach structured package/advisory metadata for downstream prioritizers
+            if let Some(serde_json::Value::Object(ref mut props)) = result.properties {
+                props.insert(
+                    "package".to_string(),
+                    serde_json::json!(finding.package.name),
+                );
+                props.insert(
+                    "version".to_string(),
+                    serde_json::json!(finding.package.version),
+                );
+                props.insert("purl".to_string(), serde_json::json!(finding.package.purl));
+                if let Some(ref cve) = finding.vulnerability.cve {
+                    props.insert("cve".to_string(), serde_json::json!(cve));
+                }
+                if let Some(ref fixed) = finding.vulnerability.fixed_version {
+                    props.insert("fixedVersion".to_string(), serde_json::json!(fixed));
+                }
+            }
+
             // Compute deterministic BLAKE3/SHA-256 fingerprint
             result.compute_deterministic_fingerprint();
 

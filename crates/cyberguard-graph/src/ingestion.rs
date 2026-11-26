@@ -95,9 +95,10 @@ impl StandardTelemetryIngester {
         };
 
         // Compute normalized risk score (0.0 .. 1.0)
+        // Note: `triFactorScore` and `cvss` in SARIF properties are both on a 0.0 ..= 10.0 scale.
         let risk_score = if let Some(serde_json::Value::Object(ref props)) = result.properties {
             if let Some(serde_json::Value::Number(ref num)) = props.get("triFactorScore") {
-                num.as_f64().map(|s| (s / 100.0).clamp(0.0, 1.0))
+                num.as_f64().map(|s| (s / 10.0).clamp(0.0, 1.0))
             } else if let Some(serde_json::Value::Number(ref num)) = props.get("cvss") {
                 num.as_f64().map(|s| (s / 10.0).clamp(0.0, 1.0))
             } else {
@@ -181,7 +182,7 @@ impl StandardTelemetryIngester {
             }
 
             let risk_score = if let Some(tri) = finding.tri_factor_score {
-                (tri / 100.0).clamp(0.0, 1.0)
+                (tri / 10.0).clamp(0.0, 1.0)
             } else if let Some(cvss) = finding.cvss_score {
                 (cvss / 10.0).clamp(0.0, 1.0)
             } else {

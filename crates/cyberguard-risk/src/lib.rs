@@ -7,12 +7,18 @@
 
 pub mod call_graph;
 pub mod cargo_graph;
+pub mod engine;
+pub mod epss;
 pub mod error;
 pub mod models;
+pub mod scorer;
 pub mod traits;
 
 pub use call_graph::*;
 pub use cargo_graph::*;
+pub use engine::*;
+pub use epss::*;
 pub use error::*;
 pub use models::*;
+pub use scorer::*;
 pub use traits::*;
