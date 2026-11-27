@@ -67,8 +67,9 @@ fn test_aegix_mcp_cli_stdio_wire_purity() {
     let tools = tools_resp["result"]["tools"]
         .as_array()
         .expect("tools array");
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 13);
     assert!(tools.iter().any(|t| t["name"] == "aegix_fix"));
+    assert!(tools.iter().any(|t| t["name"] == "aegix_report"));
 
     // 3. Drop stdin to send clean EOF
     drop(stdin);

@@ -19,6 +19,7 @@ cyberguard-threat = { workspace = true }
 cyberguard-graph = { workspace = true }
 cyberguard-risk = { workspace = true }
 cyberguard-fix = { workspace = true }
+cyberguard-ui = { workspace = true }
 
 tokio = { workspace = true }
 serde = { workspace = true }

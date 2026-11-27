@@ -159,6 +159,7 @@ impl AegixResourceCatalog {
                 "cyberguard-graph",
                 "cyberguard-risk",
                 "cyberguard-fix",
+                "cyberguard-ui",
                 "cyberguard-core"
             ]
         });

@@ -301,5 +301,29 @@ pub fn get_tool_catalog() -> Vec<Tool> {
                 "required": ["path"]
             }),
         },
+        Tool {
+            name: "aegix_report".to_string(),
+            description: Some(
+                "Executive Security Reporting & Metrics Aggregation: computes overall Security Posture Score (0-100), severity breakdowns, compliance scorecards (OWASP, CIS, MITRE ATT&CK), and renders executive HTML/print or JSON reports.".to_string(),
+            ),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Target project directory or SARIF file to evaluate (defaults to current directory '.')"
+                    },
+                    "sarif_path": {
+                        "type": "string",
+                        "description": "Optional path to a SARIF report file containing findings to aggregate"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output representation: 'summary', 'html', or 'json' (default: 'summary')"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
     ]
 }

@@ -18,6 +18,10 @@ use cyberguard_sast::{NativeRuleEngine, SastAnalyzer, ScanContext};
 use cyberguard_sca::sbom::{generate_cyclonedx_json, generate_spdx_json};
 use cyberguard_sca::{ScaAnalyzer, ScaEngine};
 use cyberguard_secret::{SecretEngine, SecretScanner};
+use cyberguard_ui::{
+    DashboardRenderer, DefaultHtmlReportGenerator, DefaultMetricsAggregator,
+    DefaultTerminalDashboard, ReportAggregator, ReportGenerator,
+};
 use std::path::{Path, PathBuf};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -87,6 +91,9 @@ pub enum Commands {
 
     /// Synthesize and apply syntax-preserving AST code fixes
     Fix(FixArgs),
+
+    /// Generate executive security reports and interactive terminal dashboards
+    Report(ReportArgs),
 
     /// Launch Aegix as an AI agent Model Context Protocol (MCP) server
     Mcp(McpArgs),
@@ -618,6 +625,29 @@ pub struct FixArgs {
     /// Generate eradication unit tests for eradicated vulnerabilities
     #[arg(long, default_value_t = true)]
     pub write_tests: bool,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct ReportArgs {
+    /// Target directory or SARIF file to generate executive report for
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+
+    /// Optional path to input SARIF v2.1.0 report file
+    #[arg(long, value_name = "FILE")]
+    pub sarif: Option<PathBuf>,
+
+    /// Optional output file path for standalone executive HTML/print report
+    #[arg(long, value_name = "FILE")]
+    pub html: Option<PathBuf>,
+
+    /// Optional output file path for executive JSON report
+    #[arg(long, value_name = "FILE")]
+    pub json: Option<PathBuf>,
+
+    /// Suppress ANSI terminal dashboard output to stdout
+    #[arg(long, default_value_t = false)]
+    pub no_terminal: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]
@@ -1987,6 +2017,136 @@ async fn main() -> anyhow::Result<()> {
 
             if plan.unfixable_count > 0 {
                 std::process::exit(1);
+            }
+        }
+        Some(Commands::Report(args)) => {
+            let (sarif_log, target_str) = if let Some(ref sarif_path) = args.sarif {
+                let content = match std::fs::read_to_string(sarif_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading SARIF file '{}': {}", sarif_path.display(), e);
+                        std::process::exit(2);
+                    }
+                };
+                let log: SarifLog = match serde_json::from_str(&content) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Error parsing SARIF JSON: {}", e);
+                        std::process::exit(2);
+                    }
+                };
+                (log, sarif_path.to_string_lossy().to_string())
+            } else if args.path.is_file()
+                && args
+                    .path
+                    .extension()
+                    .is_some_and(|ext| ext == "json" || ext == "sarif")
+            {
+                let content = match std::fs::read_to_string(&args.path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading file '{}': {}", args.path.display(), e);
+                        std::process::exit(2);
+                    }
+                };
+                let log: SarifLog = match serde_json::from_str(&content) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Error parsing SARIF JSON: {}", e);
+                        std::process::exit(2);
+                    }
+                };
+                (log, args.path.to_string_lossy().to_string())
+            } else {
+                // In-process multi-engine scan
+                let sast_engine = NativeRuleEngine::default();
+                let ctx = ScanContext::new(&args.path);
+                let sast_findings = sast_engine.analyze(&ctx).await.unwrap_or_default();
+
+                let secret_engine = SecretEngine::default();
+                let raw_secrets = secret_engine
+                    .scan_path(&args.path)
+                    .await
+                    .unwrap_or_default();
+                let secret_findings = secret_engine.to_sarif(&raw_secrets);
+
+                let mut log = SarifLog::new("Aegix Engine", env!("CARGO_PKG_VERSION"));
+                for rule in sast_engine.rules() {
+                    log.add_rule(ReportingDescriptor {
+                        id: rule.id.clone(),
+                        name: Some(rule.name.clone()),
+                        short_description: Message {
+                            text: rule.message.clone(),
+                        },
+                        full_description: None,
+                        help_uri: Some(rule.help_uri.clone()),
+                    });
+                }
+                for f in sast_findings.into_iter().chain(secret_findings) {
+                    log.add_result(f);
+                }
+                (log, args.path.to_string_lossy().to_string())
+            };
+
+            let aggregator = DefaultMetricsAggregator::new();
+            let report = match aggregator.aggregate_sarif(&sarif_log, &target_str) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Executive report aggregation failed: {}", e);
+                    std::process::exit(2);
+                }
+            };
+
+            if let Some(ref html_path) = args.html {
+                let generator = DefaultHtmlReportGenerator::new();
+                match generator.generate_html(&report) {
+                    Ok(html) => {
+                        if let Err(e) = std::fs::write(html_path, html) {
+                            eprintln!(
+                                "Error saving HTML report to '{}': {}",
+                                html_path.display(),
+                                e
+                            );
+                            std::process::exit(2);
+                        }
+                        println!("📄 Executive HTML report saved to {}", html_path.display());
+                    }
+                    Err(e) => {
+                        eprintln!("HTML report generation failed: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            }
+
+            if let Some(ref json_path) = args.json {
+                match serde_json::to_string_pretty(&report) {
+                    Ok(json_str) => {
+                        if let Err(e) = std::fs::write(json_path, json_str) {
+                            eprintln!(
+                                "Error saving JSON report to '{}': {}",
+                                json_path.display(),
+                                e
+                            );
+                            std::process::exit(2);
+                        }
+                        println!("📊 Executive JSON report saved to {}", json_path.display());
+                    }
+                    Err(e) => {
+                        eprintln!("JSON serialization failed: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            }
+
+            if !args.no_terminal {
+                let dashboard = DefaultTerminalDashboard::new(true);
+                match dashboard.render_dashboard(&report) {
+                    Ok(rendered) => print!("{}", rendered),
+                    Err(e) => {
+                        eprintln!("Terminal dashboard rendering failed: {}", e);
+                        std::process::exit(2);
+                    }
+                }
             }
         }
         Some(Commands::Mcp(args)) => {

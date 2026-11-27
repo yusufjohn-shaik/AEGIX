@@ -4,7 +4,8 @@
 
 use cyberguard_core::sarif::{SarifLevel, SarifLog, SarifResult};
 use cyberguard_ui::{
-    DefaultHtmlReportGenerator, DefaultMetricsAggregator, ReportAggregator, ReportGenerator,
+    DashboardRenderer, DefaultHtmlReportGenerator, DefaultMetricsAggregator,
+    DefaultTerminalDashboard, ReportAggregator, ReportGenerator,
 };
 
 fn create_sample_sarif() -> SarifLog {
@@ -77,4 +78,24 @@ fn test_html_report_generation() {
     assert!(html.contains("@media print"));
     assert!(html.contains("OWASP Top 10"));
     assert!(html.contains("CIS Benchmarks"));
+}
+
+#[test]
+fn test_terminal_dashboard_rendering() {
+    let sarif = create_sample_sarif();
+    let aggregator = DefaultMetricsAggregator::new();
+    let report = aggregator
+        .aggregate_sarif(&sarif, "test-target")
+        .expect("aggregation succeeds");
+
+    let dashboard = DefaultTerminalDashboard::new(false);
+    let rendered = dashboard
+        .render_dashboard(&report)
+        .expect("dashboard renders");
+
+    assert!(rendered.contains("SECURITY POSTURE SCORE"));
+    assert!(rendered.contains("Total Findings: 2"));
+    assert!(rendered.contains("Critical: 2"));
+    assert!(rendered.contains("OWASP Top 10"));
+    assert!(rendered.contains("CG-SQLI-001"));
 }

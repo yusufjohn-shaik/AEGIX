@@ -17,3 +17,7 @@ pub trait ReportAggregator {
 pub trait ReportGenerator {
     fn generate_html(&self, report: &ExecutiveReport) -> Result<String, UiError>;
 }
+
+pub trait DashboardRenderer {
+    fn render_dashboard(&self, report: &ExecutiveReport) -> Result<String, UiError>;
+}

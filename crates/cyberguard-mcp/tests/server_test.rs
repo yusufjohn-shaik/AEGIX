@@ -67,7 +67,7 @@ async fn test_router_tools_list_and_call() {
     let list_resp = router.handle_request(list_req).await.expect("list tools");
     let tools_val = list_resp.result.expect("tools result");
     let tools = tools_val["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 13);
 
     // 2. tools/call
     let call_req = JsonRpcRequest {

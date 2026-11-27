@@ -31,6 +31,10 @@ use cyberguard_sca::{ScaAnalyzer, ScaEngine};
 use cyberguard_secret::{SecretEngine, SecretScanner};
 use cyberguard_threat::traits::ThreatScanner;
 use cyberguard_threat::{MitreMatrixDomain, ThreatEngine, ThreatReportFormatter};
+use cyberguard_ui::{
+    DashboardRenderer, DefaultHtmlReportGenerator, DefaultMetricsAggregator,
+    DefaultTerminalDashboard, ReportAggregator, ReportGenerator,
+};
 use std::path::{Path, PathBuf};
 
 /// Default finding limit to protect LLM context windows.
@@ -1051,6 +1055,100 @@ USER appuser
 
         CallToolResult::success(out)
     }
+
+    /// Execute Executive Security Reporting & Metrics Aggregation (`cyberguard-ui`).
+    async fn run_aegix_report(
+        &self,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> CallToolResult {
+        let path = match Self::extract_path(&args) {
+            Ok(p) => p,
+            Err(fail) => return fail,
+        };
+
+        let format_choice = args
+            .as_ref()
+            .and_then(|m| m.get("format"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("summary");
+
+        let sarif_path = args
+            .as_ref()
+            .and_then(|m| m.get("sarif_path"))
+            .and_then(|v| v.as_str())
+            .map(PathBuf::from);
+
+        let (sarif_log, target_str) = if let Some(ref sp) = sarif_path {
+            match std::fs::read_to_string(sp) {
+                Ok(content) => match serde_json::from_str::<SarifLog>(&content) {
+                    Ok(sarif) => (sarif, sp.to_string_lossy().to_string()),
+                    Err(e) => {
+                        return CallToolResult::failure(format!("Malformed SARIF file: {}", e))
+                    }
+                },
+                Err(e) => {
+                    return CallToolResult::failure(format!("Failed to read SARIF file: {}", e))
+                }
+            }
+        } else if path.is_file()
+            && path
+                .extension()
+                .is_some_and(|ext| ext == "json" || ext == "sarif")
+        {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => match serde_json::from_str::<SarifLog>(&content) {
+                    Ok(sarif) => (sarif, path.to_string_lossy().to_string()),
+                    Err(e) => {
+                        return CallToolResult::failure(format!("Malformed SARIF file: {}", e))
+                    }
+                },
+                Err(e) => {
+                    return CallToolResult::failure(format!("Failed to read SARIF file: {}", e))
+                }
+            }
+        } else {
+            let sast_engine = NativeRuleEngine::default();
+            let ctx = ScanContext::new(&path);
+            let sast_findings = sast_engine.analyze(&ctx).await.unwrap_or_default();
+
+            let secret_engine = SecretEngine::default();
+            let raw_secrets = secret_engine.scan_path(&path).await.unwrap_or_default();
+            let secret_findings = secret_engine.to_sarif(&raw_secrets);
+
+            let mut log = SarifLog::new("Aegix Engine", env!("CARGO_PKG_VERSION"));
+            for f in sast_findings.into_iter().chain(secret_findings) {
+                log.add_result(f);
+            }
+            (log, path.to_string_lossy().to_string())
+        };
+
+        let aggregator = DefaultMetricsAggregator::new();
+        let report = match aggregator.aggregate_sarif(&sarif_log, &target_str) {
+            Ok(r) => r,
+            Err(e) => return CallToolResult::failure(format!("Aggregation failed: {}", e)),
+        };
+
+        match format_choice {
+            "html" => {
+                let generator = DefaultHtmlReportGenerator::new();
+                match generator.generate_html(&report) {
+                    Ok(html) => CallToolResult::success(html),
+                    Err(e) => CallToolResult::failure(format!("HTML generation failed: {}", e)),
+                }
+            }
+            "json" => match serde_json::to_string_pretty(&report) {
+                Ok(json_str) => CallToolResult::success(json_str),
+                Err(e) => CallToolResult::failure(format!("JSON serialization failed: {}", e)),
+            },
+            _ => {
+                let dashboard = DefaultTerminalDashboard::new(false);
+                match dashboard.render_dashboard(&report) {
+                    Ok(rendered) => CallToolResult::success(rendered),
+                    Err(e) => CallToolResult::failure(format!("Dashboard rendering failed: {}", e)),
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -1076,6 +1174,7 @@ impl ToolExecutor for AegixEngineFacade {
             "aegix_graph" => self.run_aegix_graph(arguments).await,
             "aegix_risk" => self.run_aegix_risk(arguments).await,
             "aegix_fix" => self.run_aegix_fix(arguments).await,
+            "aegix_report" => self.run_aegix_report(arguments).await,
             "aegix_explain" => self.run_aegix_explain(arguments),
             unknown => CallToolResult::failure(format!("Unknown Aegix tool: '{}'", unknown)),
         };

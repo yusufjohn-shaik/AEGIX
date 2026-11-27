@@ -13,7 +13,7 @@ async fn test_list_tools_schema_catalog() {
     let facade = AegixEngineFacade::new();
     let tools = facade.list_tools();
 
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 13);
 
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     assert!(tool_names.contains(&"aegix_scan"));
@@ -28,6 +28,7 @@ async fn test_list_tools_schema_catalog() {
     assert!(tool_names.contains(&"aegix_risk"));
     assert!(tool_names.contains(&"aegix_explain"));
     assert!(tool_names.contains(&"aegix_fix"));
+    assert!(tool_names.contains(&"aegix_report"));
 
     for tool in &tools {
         assert!(tool.description.is_some());
@@ -267,6 +268,42 @@ async fn test_call_aegix_fix_dry_run_and_auto() {
             || content_after_auto.contains("%s")
             || content_after_auto.contains("?")
     );
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_call_aegix_report() {
+    let facade = AegixEngineFacade::new();
+    let temp_dir =
+        std::env::temp_dir().join(format!("aegix_mcp_report_test_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create test dir");
+
+    let py_file = temp_dir.join("vuln.py");
+    fs::write(
+        &py_file,
+        "def query(db, uid):\n    return db.execute('SELECT * FROM users WHERE id = ' + uid)\n",
+    )
+    .expect("write test file");
+
+    let args = json!({
+        "path": py_file.to_str().unwrap(),
+        "format": "summary"
+    })
+    .as_object()
+    .cloned();
+
+    let res = facade
+        .call_tool("aegix_report", args)
+        .await
+        .expect("report call");
+    assert!(!res.is_error);
+    match &res.content[0] {
+        ToolContent::Text { text } => {
+            assert!(text.contains("SECURITY POSTURE SCORE"));
+        }
+    }
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
