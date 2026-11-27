@@ -1,0 +1,20 @@
+[package]
+name = "cyberguard-ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Terminal dashboard, metric aggregator, and executive standalone HTML/print reporting engine for Aegix"
+
+[dependencies]
+cyberguard-core = { workspace = true }
+cyberguard-risk = { workspace = true }
+cyberguard-graph = { workspace = true }
+cyberguard-threat = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
