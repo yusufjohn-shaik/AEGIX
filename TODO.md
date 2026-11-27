@@ -67,7 +67,11 @@ These items address core credibility, developer adoption primitives, parser robu
   - Full CLI (`aegix fix`) and MCP (`aegix_fix`) tool integration with `--dry-run`, `--auto`, `--sarif`, `--rules`, and `--output-diff` support.
 
 ### Phase 1.6: Developer Interfaces (Modules 20–21)
-- [ ] **Module 20: TUI Dashboard & Reporting (`aegix-ui`):** `ratatui` terminal interface and executive PDF/HTML report generators.
+- [x] **Module 20: Terminal Dashboard & Executive Reporting (`aegix-ui` / `cyberguard-ui`):**
+  - Implemented executive metrics aggregator calculating Security Posture Score (0-100), severity distributions, and compliance scorecards (OWASP Top 10, CIS Benchmarks, MITRE ATT&CK).
+  - Standalone single-file HTML and printable PDF report generator with embedded responsive CSS, inline vector SVG gauges and charts, and zero external CDN dependencies.
+  - Rich ANSI terminal dashboard widgets with Unicode box borders, severity gauges, and executive KPI cards.
+  - Wired `aegix report` CLI subcommand (`--html`, `--json`, `--sarif`, `--no-terminal`) and `aegix_report` MCP tool.
 - [ ] **Module 21: Release Automation & Multi-Arch Packaging (`aegix-dist`):** Automated cross-compilation pipeline for static binaries.
 
 ---
